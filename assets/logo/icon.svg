@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><title>Driftwatch</title>
+<defs><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B4A54"/><stop offset="1" stop-color="#0E2A30"/></linearGradient></defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#t)"/>
+<g transform="translate(512 512) scale(2.6) translate(-128 -136)">
+<g fill="#FFFFFF"><rect x="36" y="56" width="184" height="32" rx="16"/><rect x="36" y="120" width="104" height="32" rx="16"/><rect x="36" y="184" width="184" height="32" rx="16"/></g>
+<rect fill="#F2A33A" x="164" y="104" width="56" height="32" rx="16"/></g></svg>
