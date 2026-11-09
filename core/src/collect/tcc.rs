@@ -21,7 +21,8 @@ pub fn collect() -> Vec<Item> {
 /// Read one TCC.db strictly read-only. Key = "<scope>: <service> <client>".
 /// A missing DB yields nothing; an unreadable one yields a single error Item.
 pub fn read_db(path: &Path, scope: &str) -> Vec<Item> {
-    if !path.exists() {
+    // Not `Path::exists`: it hides permission errors, which must surface as an error Item.
+    if matches!(std::fs::metadata(path), Err(e) if e.kind() == std::io::ErrorKind::NotFound) {
         return Vec::new();
     }
     query(path, scope).unwrap_or_else(|e| {
