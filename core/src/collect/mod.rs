@@ -10,6 +10,7 @@ pub mod cron;
 pub mod launchd;
 pub mod network;
 pub mod shell;
+pub mod ssh;
 pub mod sysext;
 pub mod tcc;
 
