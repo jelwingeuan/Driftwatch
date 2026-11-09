@@ -46,7 +46,7 @@ fn btm_entry_for_the_backdoor_uses_its_label_not_bash() {
 }
 
 #[test]
-fn google_updater_is_low_and_attributed() {
+fn google_updater_is_attributed_but_only_likely() {
     let e = explain(&item(
         "launchd",
         "/Library/LaunchAgents/com.google.keystone.agent.plist",
@@ -60,10 +60,61 @@ fn google_updater_is_low_and_attributed() {
             ("scope", "global agent"),
         ],
     ));
-    assert_eq!(e.risk, "low");
-    assert_eq!(e.risk_reason, None);
+    // A label alone can be faked, so the unknown-maker warning stays.
+    assert_eq!(e.risk, "medium");
+    assert_eq!(
+        e.risk_reason.as_deref(),
+        Some("Driftwatch can’t confirm who made this.")
+    );
     assert_eq!(e.added_by.as_deref(), Some("Google"));
     assert_eq!(e.confidence, Some("likely"));
+}
+
+#[test]
+fn apple_label_without_apple_team_is_not_trusted() {
+    let fake = item(
+        "launchd",
+        "/Library/LaunchDaemons/com.apple.fake.plist",
+        &[
+            ("Label", "com.apple.fake"),
+            ("Program", "/Library/Application Support/x/fake"),
+            ("scope", "global daemon"),
+        ],
+    );
+    let e = explain(&fake);
+    assert_eq!(e.risk, "medium");
+    assert_eq!(
+        e.risk_reason.as_deref(),
+        Some("Runs with full control of your Mac (as root).")
+    );
+    assert_eq!(e.confidence, Some("likely"));
+
+    let mut signed = fake.clone();
+    signed.team_id = Some("59GAB85EFG".into());
+    let e = explain(&signed);
+    assert_eq!(
+        (e.added_by.as_deref(), e.confidence),
+        (Some("Apple"), Some("known"))
+    );
+    assert_eq!(e.risk, "low");
+}
+
+#[test]
+fn app_path_in_a_daemon_does_not_hide_the_root_warning() {
+    let e = explain(&item(
+        "launchd",
+        "/Library/LaunchDaemons/x.plist",
+        &[
+            ("Label", "x"),
+            (
+                "Program",
+                "/Applications/Some Tool.app/Contents/MacOS/helper",
+            ),
+            ("scope", "global daemon"),
+        ],
+    ));
+    assert_eq!(e.confidence, Some("likely"));
+    assert_eq!(e.risk, "medium");
 }
 
 #[test]

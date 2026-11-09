@@ -129,7 +129,9 @@ pub fn explain(item: &Item) -> Explanation {
         Some((who, how)) => (Some(who), Some(how)),
         None => (None, None),
     };
-    let (risk, risk_reason) = risk(item, added_by.as_deref());
+    // A name or path can be faked: only a signature-backed vendor may lower the risk.
+    let signed_by = added_by.as_deref().filter(|_| confidence == Some("known"));
+    let (risk, risk_reason) = risk(item, signed_by);
     Explanation {
         title: title(item),
         summary: summary(item),
@@ -583,14 +585,15 @@ fn odd_folder(item: &Item) -> Option<&'static str> {
     })
 }
 
-fn risk(item: &Item, vendor: Option<&str>) -> (&'static str, Option<String>) {
+/// `signed_by`: the vendor from a code signature or catalog team ID, never a guess.
+fn risk(item: &Item, signed_by: Option<&str>) -> (&'static str, Option<String>) {
     if field(item, "error").is_some() {
         return ("low", None);
     }
     if let Some(reason) = high_risk(item) {
         return ("high", Some(reason));
     }
-    match medium_risk(item, vendor) {
+    match medium_risk(item, signed_by) {
         Some(reason) => ("medium", Some(reason.to_string())),
         None => ("low", None),
     }
@@ -628,7 +631,7 @@ fn high_risk(item: &Item) -> Option<String> {
     }
 }
 
-fn medium_risk(item: &Item, vendor: Option<&str>) -> Option<&'static str> {
+fn medium_risk(item: &Item, signed_by: Option<&str>) -> Option<&'static str> {
     match item.category.as_str() {
         "launchd" | "btm" => {
             if let Some(reason) = odd_folder(item) {
@@ -636,10 +639,10 @@ fn medium_risk(item: &Item, vendor: Option<&str>) -> Option<&'static str> {
             }
             let daemon = field(item, "scope") == Some("global daemon")
                 || field(item, "type").is_some_and(|t| t.contains("daemon"));
-            if daemon && vendor != Some("Apple") {
+            if daemon && signed_by != Some("Apple") {
                 Some("Runs with full control of your Mac (as root).")
-            } else if vendor.is_none() && item.team_id.is_none() {
-                Some("Driftwatch can’t tell who made this.")
+            } else if signed_by.is_none() && item.team_id.is_none() {
+                Some("Driftwatch can’t confirm who made this.")
             } else {
                 None
             }
