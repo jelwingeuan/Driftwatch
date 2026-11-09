@@ -1,0 +1,5 @@
+# synthetic crontab
+SHELL=/bin/sh
+
+*/5 * * * * /usr/local/bin/backup.sh --quiet
+   @reboot /Users/example/bin/start.sh
