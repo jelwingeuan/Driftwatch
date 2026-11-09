@@ -8,9 +8,9 @@ pub struct Store {
 }
 
 /// ~/Library/Application Support/Driftwatch/driftwatch.db
-pub fn default_path() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_default();
-    Path::new(&home).join("Library/Application Support/Driftwatch/driftwatch.db")
+pub fn default_path() -> Result<PathBuf, std::env::VarError> {
+    let home = std::env::var("HOME")?;
+    Ok(Path::new(&home).join("Library/Application Support/Driftwatch/driftwatch.db"))
 }
 
 impl Store {

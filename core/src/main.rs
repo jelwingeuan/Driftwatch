@@ -14,9 +14,9 @@ fn main() {
     }
 }
 
-fn scan() -> rusqlite::Result<()> {
+fn scan() -> Result<(), Box<dyn std::error::Error>> {
     let items = launchd::collect();
-    let mut store = Store::open(&store::default_path())?;
+    let mut store = Store::open(&store::default_path().map_err(|_| "HOME is not set")?)?;
     let previous = store.latest_items()?;
     store.save_snapshot(&items)?;
     let Some(previous) = previous else {

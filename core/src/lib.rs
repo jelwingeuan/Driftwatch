@@ -38,5 +38,9 @@ fn hash_of(category: &str, fields: &BTreeMap<String, String>) -> String {
         h.update([0]);
         h.update(v.as_bytes());
     }
-    h.finalize().iter().map(|b| format!("{b:02x}")).collect()
+    hex(&h.finalize())
+}
+
+pub(crate) fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
