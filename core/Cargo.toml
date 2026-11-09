@@ -1,0 +1,15 @@
+[package]
+name = "driftwatch-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "driftwatch"
+
+[[bin]]
+name = "driftwatch"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
