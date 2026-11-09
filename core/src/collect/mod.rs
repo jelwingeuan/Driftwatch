@@ -7,6 +7,7 @@ use std::process::Command;
 pub mod btm;
 pub mod cron;
 pub mod launchd;
+pub mod shell;
 
 /// Run a tool and return its stdout, or a one-line error naming what failed.
 pub(crate) fn run(cmd: &str, args: &[&str]) -> Result<String, String> {
