@@ -59,12 +59,13 @@ struct Entry: Decodable, Identifiable {
 
     /// The changes minus login & background (BTM) records that repeat a startup
     /// item changed in the same scan: BTM also lists every launch agent/daemon
-    /// plist, so one item would otherwise show and count twice.
+    /// plist, so one item would otherwise show and count twice. A BTM change is
+    /// dropped only when its url is the same plist file, changed the same way.
     var distinctChanges: [Change] {
-        let plists = Set(changes.filter { $0.category == "launchd" }.map(\.fileName))
+        let launchd = Set(changes.filter { $0.category == "launchd" }.map { [$0.kind.rawValue, $0.key] })
         return changes.filter { change in
-            guard change.category == "btm", let url = change.fields["url"], url.hasSuffix(".plist") else { return true }
-            return !plists.contains(URL(fileURLWithPath: url).lastPathComponent)
+            guard change.category == "btm", let path = change.btmPath else { return true }
+            return !launchd.contains([change.kind.rawValue, path])
         }
     }
 
@@ -114,7 +115,17 @@ struct Change: Decodable, Hashable {
     /// Hashes mean nothing to a person; they stay in Details.
     static let hashFields: Set<String> = ["file_sha256", "cdhash", "sha1"]
 
-    var fileName: String { URL(fileURLWithPath: key).lastPathComponent }
+    /// The file a BTM record's url names, spelled the way the launchd scan spells
+    /// paths: file:// and %-escapes decoded, and this user's "/Users/<uid or name>/"
+    /// turned into the real home folder.
+    var btmPath: String? {
+        guard let url = fields["url"] else { return nil }
+        let path = (url.hasPrefix("file://") ? URL(string: url)?.path : url.removingPercentEncoding) ?? url
+        for alias in ["/Users/\(getuid())/", "/Users/\(NSUserName())/"] where path.hasPrefix(alias) {
+            return NSHomeDirectory() + "/" + path.dropFirst(alias.count)
+        }
+        return path
+    }
 }
 
 /// A change together with the scan that found it.

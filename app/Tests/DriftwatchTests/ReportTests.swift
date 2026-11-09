@@ -31,19 +31,55 @@ import Testing
     #expect(history.errors.count == 1)
 }
 
+/// One scan with a launchd change for each (kind, plist path) and a BTM change
+/// for each (kind, url).
+private func entry(launchd: [(String, String)], btm: [(String, String)]) throws -> Entry {
+    let changes = launchd.map { kind, path in
+        #"{"category":"launchd","fields":{},"key":"\#(path)","kind":"\#(kind)","title":"x"}"#
+    } + btm.map { kind, url in
+        #"{"category":"btm","fields":{"url":"\#(url)"},"key":"uid 501: \#(url)","kind":"\#(kind)","title":"x"}"#
+    }
+    let json = #"{"snapshot_id":2,"taken_at":"2026-11-09T15:45:29Z","changes":[\#(changes.joined(separator: ","))]}"#
+    return try decodeCLIOutput(Entry.self, from: Data(json.utf8))
+}
+
 @Test func btmRecordOfAChangedStartupItemIsNotCountedTwice() throws {
-    let json = """
-    {"snapshot_id":2,"taken_at":"2026-11-09T15:45:29Z","changes":[\
-    {"category":"btm","fields":{"url":"/Users/501/Library/LaunchAgents/x.plist"},"key":"uid 501: 8.x",\
-    "kind":"added","old_fields":null,"team_id":null,"title":"x"},\
-    {"category":"btm","fields":{"url":"/Applications/Y.app"},"key":"uid 501: 2.y",\
-    "kind":"added","old_fields":null,"team_id":null,"title":"Y"},\
-    {"category":"launchd","fields":{"Label":"x"},"key":"/Users/me/Library/LaunchAgents/x.plist",\
-    "kind":"added","old_fields":null,"team_id":null,"title":"x"}]}
-    """
-    let entry = try decodeCLIOutput(Entry.self, from: Data(json.utf8))
-    #expect(entry.distinctChanges.map(\.category) == ["btm", "launchd"])
-    #expect(entry.rows.count == 2)
+    let home = NSHomeDirectory()
+    let e = try entry(
+        launchd: [
+            ("added", "\(home)/Library/LaunchAgents/x.plist"),
+            ("added", "\(home)/Library/LaunchAgents/n.plist"),
+            ("added", "/Library/LaunchAgents/My Agent.plist"),
+        ],
+        btm: [
+            ("added", "/Users/\(getuid())/Library/LaunchAgents/x.plist"),
+            ("added", "/Users/\(NSUserName())/Library/LaunchAgents/n.plist"),
+            ("added", "file:///Library/LaunchAgents/My%20Agent.plist"),
+            ("added", "/Applications/Y.app"),
+        ]
+    )
+    #expect(e.distinctChanges.map(\.category) == ["launchd", "launchd", "launchd", "btm"])
+    #expect(e.distinctChanges.last?.fields["url"] == "/Applications/Y.app")
+    #expect(e.rows.count == 4)
+}
+
+@Test func btmChangeIsShownUnlessSamePlistAndSameKind() throws {
+    let e = try entry(
+        launchd: [
+            ("added", "/Library/LaunchAgents/x.plist"),
+            ("added", "/Library/LaunchAgents/y.plist"),
+            ("added", "\(NSHomeDirectory())/Library/LaunchAgents/z.plist"),
+        ],
+        btm: [
+            // Same file name, other folder.
+            ("added", "/Library/LaunchDaemons/x.plist"),
+            // Same plist, other kind.
+            ("removed", "/Library/LaunchAgents/y.plist"),
+            // Another user's home folder.
+            ("added", "/Users/\(getuid() + 1)/Library/LaunchAgents/z.plist"),
+        ]
+    )
+    #expect(e.distinctChanges.count == 6)
 }
 
 @Test func decodesScanAndEmptyHistory() throws {
