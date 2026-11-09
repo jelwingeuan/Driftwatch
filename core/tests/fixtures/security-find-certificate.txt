@@ -1,0 +1,16 @@
+SHA-256 hash: 1111111111111111111111111111111111111111111111111111111111111111
+SHA-1 hash: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+keychain: "/Users/example/Library/Keychains/login.keychain-db"
+version: 512
+class: 0x80001000 
+attributes:
+    "alis"<blob>="Example Corp Proxy CA"
+    "labl"<blob>="Example Corp Proxy CA"
+    "skid"<blob>=<NULL>
+SHA-256 hash: 2222222222222222222222222222222222222222222222222222222222222222
+SHA-1 hash: BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+keychain: "/Library/Keychains/System.keychain"
+version: 512
+class: 0x80001000 
+attributes:
+    "labl"<blob>="com.apple.systemdefault"

@@ -1,0 +1,9 @@
+Number of trusted certs = 2
+Cert 0: Example Corp Proxy CA
+   Number of trust settings : 1
+   Trust Setting 0:
+      Policy OID            : Apple X509 Basic
+      Allowed Error         : CSSMERR_TP_CERT_EXPIRED
+      Result Type           : kSecTrustSettingsResultTrustAsRoot
+Cert 1: Orphan Root
+   Number of trust settings : 0

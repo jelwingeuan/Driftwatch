@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub mod btm;
+pub mod certs;
 pub mod cron;
 pub mod launchd;
 pub mod shell;

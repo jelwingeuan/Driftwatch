@@ -1,4 +1,4 @@
-use driftwatch::collect::{btm, cron, launchd, shell, sysext, tcc};
+use driftwatch::collect::{btm, certs, cron, launchd, shell, sysext, tcc};
 use driftwatch::diff::{diff, ChangeKind};
 use driftwatch::store::{self, Store};
 
@@ -21,6 +21,7 @@ fn scan() -> Result<(), Box<dyn std::error::Error>> {
     items.extend(shell::collect());
     items.extend(sysext::collect());
     items.extend(tcc::collect());
+    items.extend(certs::collect());
     let mut store = Store::open(&store::default_path().map_err(|_| "HOME is not set")?)?;
     let previous = store.latest_items()?;
     store.save_snapshot(&items)?;
