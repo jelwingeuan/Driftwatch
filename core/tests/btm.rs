@@ -35,3 +35,10 @@ fn parses_sfltool_dumpbtm() {
     b.remove("uid");
     assert_eq!(a, b);
 }
+
+#[test]
+fn missing_identifier_falls_back_to_executable_then_url() {
+    let text = " Records for UID 501 : X\n\n #1:\n      Executable Path: /bin/bash\n                  URL: /tmp/a.plist\n\n #2:\n                  URL: /tmp/b.plist\n";
+    let keys: Vec<String> = parse(text).into_iter().map(|i| i.key).collect();
+    assert_eq!(keys, ["uid 501: /bin/bash", "uid 501: /tmp/b.plist"]);
+}

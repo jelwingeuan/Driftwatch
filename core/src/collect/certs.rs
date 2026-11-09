@@ -64,7 +64,7 @@ pub fn parse_trust(text: &str, domain: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// `security find-certificate -a -Z` → one Item per cert, key = SHA-1 hash.
+/// `security find-certificate -a -Z` → one Item per cert, key = "<keychain> <SHA-1>".
 /// Trust entries are attached by name; ones with no matching cert get their own Item.
 pub fn parse_certs(text: &str, trust: &[(String, String)]) -> Vec<Item> {
     let mut certs: Vec<BTreeMap<String, String>> = Vec::new();
@@ -94,7 +94,8 @@ pub fn parse_certs(text: &str, trust: &[(String, String)]) -> Vec<Item> {
         if !matched.is_empty() {
             c.insert("trust".into(), matched.join(" | "));
         }
-        let key = c.remove("sha1").unwrap_or_default();
+        let sha1 = c.remove("sha1").unwrap_or_default();
+        let key = format!("{} {sha1}", c.get("keychain").map_or("", String::as_str));
         items.push(Item::new(CATEGORY, &key, c));
     }
     for ((name, s), used) in trust.iter().zip(used) {

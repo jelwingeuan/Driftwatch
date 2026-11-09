@@ -20,7 +20,10 @@ fn parses_certs_with_trust() {
     );
     assert_eq!(items.len(), 3);
     let proxy = &items[0];
-    assert_eq!(proxy.key, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    assert_eq!(
+        proxy.key,
+        "/Users/example/Library/Keychains/login.keychain-db AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    );
     assert_eq!(proxy.fields["label"], "Example Corp Proxy CA");
     assert!(proxy.fields["keychain"].ends_with("login.keychain-db"));
     assert!(proxy.fields["trust"].contains("TrustAsRoot"));

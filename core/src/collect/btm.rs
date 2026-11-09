@@ -29,7 +29,10 @@ pub fn parse(text: &str) -> Vec<Item> {
     let mut cur: Option<BTreeMap<String, String>> = None;
     let mut flush = |cur: &mut Option<BTreeMap<String, String>>, uid: &str| {
         if let Some(mut f) = cur.take() {
-            let id = f.remove("identifier").unwrap_or_default();
+            let id = f
+                .remove("identifier")
+                .or_else(|| f.get("executable").or(f.get("url")).cloned())
+                .unwrap_or_default();
             f.insert("uid".into(), uid.to_string());
             let mut item = Item::new(CATEGORY, &format!("uid {uid}: {id}"), f);
             item.team_id = item.fields.get("team_id").cloned();

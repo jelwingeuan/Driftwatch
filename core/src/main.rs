@@ -25,6 +25,7 @@ fn scan() -> Result<(), Box<dyn std::error::Error>> {
     items.extend(network::collect());
     items.extend(ssh::collect());
     items.extend(apps::collect());
+    driftwatch::uniquify_keys(&mut items);
     let mut store = Store::open(&store::default_path().map_err(|_| "HOME is not set")?)?;
     let previous = store.latest_items()?;
     store.save_snapshot(&items)?;

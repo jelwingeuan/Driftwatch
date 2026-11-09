@@ -28,6 +28,21 @@ impl Item {
     }
 }
 
+/// Make (category, key) unique so diff and store never collapse items: the 2nd,
+/// 3rd… repeat of a key (in input order) gets " #2", " #3"… appended.
+pub fn uniquify_keys(items: &mut [Item]) {
+    let mut seen: std::collections::HashMap<(String, String), usize> = Default::default();
+    for item in items {
+        let n = seen
+            .entry((item.category.clone(), item.key.clone()))
+            .or_default();
+        *n += 1;
+        if *n > 1 {
+            item.key = format!("{} #{n}", item.key);
+        }
+    }
+}
+
 /// SHA-256 hex of the category and the (already sorted) fields, NUL-separated.
 fn hash_of(category: &str, fields: &BTreeMap<String, String>) -> String {
     let mut h = Sha256::new();
