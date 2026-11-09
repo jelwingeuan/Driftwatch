@@ -1,0 +1,5 @@
+2 extension(s)
+--- com.apple.system_extension.network_extension (Go to 'System Settings > General > Login Items & Extensions > Network Extensions' to modify these system extension(s))
+enabled	active	teamID	bundleID (version)	name	[state]
+*	*	ABCDE12345	com.example.vpn.extension (1.2.3/45)	Example VPN	[activated enabled]
+		ZZZZZ99999	com.example.filter (2.0/7)	Example Filter	[terminated waiting to uninstall on reboot]
