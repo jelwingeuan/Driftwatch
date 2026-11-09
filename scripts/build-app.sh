@@ -16,7 +16,8 @@ bin="$(swift build -c release --package-path app --show-bin-path)"
 
 app=build/Driftwatch.app
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+cp assets/logo/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 cp "$bin/Driftwatch" "$app/Contents/MacOS/Driftwatch"
 # Not "driftwatch": on a case-insensitive disk that name is the app's own executable.
 cp "$cli" "$app/Contents/MacOS/driftwatch-cli"
@@ -28,6 +29,7 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>com.driftwatch.app</string>
   <key>CFBundleName</key><string>Driftwatch</string>
   <key>CFBundleExecutable</key><string>Driftwatch</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <!-- English UI, so dates read "6 minutes ago", not a mix of English and the system language. -->
