@@ -8,6 +8,7 @@ pub mod btm;
 pub mod certs;
 pub mod cron;
 pub mod launchd;
+pub mod network;
 pub mod shell;
 pub mod sysext;
 pub mod tcc;
