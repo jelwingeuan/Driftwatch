@@ -11,10 +11,8 @@ pub fn collect() -> Vec<Item> {
         Ok(text) => parse_hosts(&text),
         Err(e) => vec![error_item(CATEGORY, "/etc/hosts", &e.to_string())],
     };
-    match list_dir(Path::new("/etc/resolver")) {
-        Ok(paths) => items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p))),
-        Err(e) => items.push(error_item(CATEGORY, "/etc/resolver", &e)),
-    }
+    let paths = list_dir(CATEGORY, Path::new("/etc/resolver"), &mut items);
+    items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p)));
     match run("scutil", &["--dns"]) {
         Ok(out) => items.extend(parse_dns(&out)),
         Err(e) => items.push(error_item(CATEGORY, "scutil --dns", &e)),

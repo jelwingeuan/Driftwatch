@@ -14,21 +14,16 @@ pub fn collect() -> Vec<Item> {
         Err(_) => Vec::new(),
     };
     items.extend(file_item(CATEGORY, Path::new("/etc/ssh/sshd_config")));
-    match list_dir(Path::new("/etc/ssh/sshd_config.d")) {
-        Ok(paths) => items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p))),
-        Err(e) => items.push(error_item(CATEGORY, "/etc/ssh/sshd_config.d", &e)),
-    }
+    let paths = list_dir(CATEGORY, Path::new("/etc/ssh/sshd_config.d"), &mut items);
+    items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p)));
     items
 }
 
 /// authorized_keys is parsed per key; config and *.pub are hashed; every other
 /// file (private keys) is recorded by name + mtime only, never read.
 pub fn collect_ssh_dir(dir: &Path) -> Vec<Item> {
-    let paths = match list_dir(dir) {
-        Ok(p) => p,
-        Err(e) => return vec![error_item(CATEGORY, &dir.to_string_lossy(), &e)],
-    };
     let mut items = Vec::new();
+    let paths = list_dir(CATEGORY, dir, &mut items);
     for path in paths {
         let name = path.file_name().unwrap_or_default().to_string_lossy();
         let key = path.to_string_lossy();

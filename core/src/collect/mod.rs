@@ -53,15 +53,29 @@ pub(crate) fn file_item(category: &str, path: &Path) -> Option<Item> {
     }
 }
 
-/// Sorted file paths in `dir` (hidden files included). Missing dir → empty;
-/// unreadable dir → Err.
-pub(crate) fn list_dir(dir: &Path) -> Result<Vec<PathBuf>, String> {
+/// Sorted paths in `dir` (hidden files included). Missing dir → empty. An
+/// unreadable dir or entry is pushed to `errors` as an error Item, never dropped.
+pub(crate) fn list_dir(category: &str, dir: &Path, errors: &mut Vec<Item>) -> Vec<PathBuf> {
+    let key = dir.to_string_lossy();
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(e) => return Err(e.to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+        Err(e) => {
+            errors.push(error_item(category, &key, &e.to_string()));
+            return Vec::new();
+        }
     };
-    let mut paths: Vec<PathBuf> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+    let mut paths = Vec::new();
+    for (i, entry) in entries.enumerate() {
+        match entry {
+            Ok(e) => paths.push(e.path()),
+            Err(e) => errors.push(error_item(
+                category,
+                &format!("{key}#entry{i}"),
+                &e.to_string(),
+            )),
+        }
+    }
     paths.sort();
-    Ok(paths)
+    paths
 }

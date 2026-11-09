@@ -40,10 +40,8 @@ pub fn parse_crontab(text: &str) -> Vec<Item> {
 pub fn collect_periodic(dirs: &[PathBuf]) -> Vec<Item> {
     let mut items = Vec::new();
     for dir in dirs {
-        match list_dir(dir) {
-            Ok(paths) => items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p))),
-            Err(e) => items.push(error_item(CATEGORY, &dir.to_string_lossy(), &e)),
-        }
+        let paths = list_dir(CATEGORY, dir, &mut items);
+        items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p)));
     }
     items
 }

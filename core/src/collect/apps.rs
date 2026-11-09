@@ -16,14 +16,12 @@ pub fn collect() -> Vec<Item> {
     let mut items = Vec::new();
     let mut apps = Vec::new();
     for dir in dirs {
-        match list_dir(&dir) {
-            Ok(paths) => apps.extend(
-                paths
-                    .into_iter()
-                    .filter(|p| p.extension().is_some_and(|x| x == "app")),
-            ),
-            Err(e) => items.push(error_item(CATEGORY, &dir.to_string_lossy(), &e)),
-        }
+        let paths = list_dir(CATEGORY, &dir, &mut items);
+        apps.extend(
+            paths
+                .into_iter()
+                .filter(|p| p.extension().is_some_and(|x| x == "app")),
+        );
     }
     // codesign is slow per app, so run the chunks in parallel.
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get());

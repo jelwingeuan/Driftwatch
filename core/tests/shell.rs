@@ -15,3 +15,17 @@ fn hashes_present_files_and_skips_missing() {
     assert_eq!(items[1].fields["size"], "17");
     assert_ne!(items[0].hash, items[1].hash);
 }
+
+#[test]
+fn unreadable_dir_becomes_error_item() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = std::env::temp_dir().join(format!("driftwatch-locked-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let items = collect_files(&[], std::slice::from_ref(&dir));
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::remove_dir(&dir).unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].key, dir.to_string_lossy());
+    assert!(items[0].fields.contains_key("error"));
+}

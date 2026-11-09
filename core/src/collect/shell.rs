@@ -1,4 +1,4 @@
-use super::{error_item, file_item, list_dir};
+use super::{file_item, list_dir};
 use crate::Item;
 use std::path::{Path, PathBuf};
 
@@ -33,10 +33,8 @@ pub fn collect_files(files: &[PathBuf], dirs: &[PathBuf]) -> Vec<Item> {
         .filter_map(|p| file_item(CATEGORY, p))
         .collect();
     for dir in dirs {
-        match list_dir(dir) {
-            Ok(paths) => items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p))),
-            Err(e) => items.push(error_item(CATEGORY, &dir.to_string_lossy(), &e)),
-        }
+        let paths = list_dir(CATEGORY, dir, &mut items);
+        items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p)));
     }
     items
 }
