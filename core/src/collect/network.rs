@@ -1,4 +1,4 @@
-use super::{error_item, file_item, list_dir, run};
+use super::{error_item, file_item, list_files, run};
 use crate::Item;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -11,7 +11,7 @@ pub fn collect() -> Vec<Item> {
         Ok(text) => parse_hosts(&text),
         Err(e) => vec![error_item(CATEGORY, "/etc/hosts", &e.to_string())],
     };
-    let paths = list_dir(CATEGORY, Path::new("/etc/resolver"), &mut items);
+    let paths = list_files(CATEGORY, Path::new("/etc/resolver"), &mut items);
     items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p)));
     match run("scutil", &["--dns"]) {
         Ok(out) => items.extend(parse_dns(&out)),

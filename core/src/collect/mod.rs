@@ -79,3 +79,10 @@ pub(crate) fn list_dir(category: &str, dir: &Path, errors: &mut Vec<Item>) -> Ve
     paths.sort();
     paths
 }
+
+/// Like `list_dir`, minus subdirectories (symlinks are followed, so links to files stay).
+pub(crate) fn list_files(category: &str, dir: &Path, errors: &mut Vec<Item>) -> Vec<PathBuf> {
+    let mut paths = list_dir(category, dir, errors);
+    paths.retain(|p| !p.is_dir());
+    paths
+}

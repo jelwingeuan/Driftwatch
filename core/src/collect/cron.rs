@@ -1,4 +1,4 @@
-use super::{error_item, file_item, list_dir};
+use super::{error_item, file_item, list_files};
 use crate::Item;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -40,7 +40,7 @@ pub fn parse_crontab(text: &str) -> Vec<Item> {
 pub fn collect_periodic(dirs: &[PathBuf]) -> Vec<Item> {
     let mut items = Vec::new();
     for dir in dirs {
-        let paths = list_dir(CATEGORY, dir, &mut items);
+        let paths = list_files(CATEGORY, dir, &mut items);
         items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p)));
     }
     items

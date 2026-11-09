@@ -1,4 +1,4 @@
-use super::{error_item, file_item, list_dir};
+use super::{error_item, file_item, list_files};
 use crate::Item;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -14,7 +14,7 @@ pub fn collect() -> Vec<Item> {
         Err(_) => Vec::new(),
     };
     items.extend(file_item(CATEGORY, Path::new("/etc/ssh/sshd_config")));
-    let paths = list_dir(CATEGORY, Path::new("/etc/ssh/sshd_config.d"), &mut items);
+    let paths = list_files(CATEGORY, Path::new("/etc/ssh/sshd_config.d"), &mut items);
     items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p)));
     items
 }
@@ -23,7 +23,7 @@ pub fn collect() -> Vec<Item> {
 /// file (private keys) is recorded by name + mtime only, never read.
 pub fn collect_ssh_dir(dir: &Path) -> Vec<Item> {
     let mut items = Vec::new();
-    let paths = list_dir(CATEGORY, dir, &mut items);
+    let paths = list_files(CATEGORY, dir, &mut items);
     for path in paths {
         let name = path.file_name().unwrap_or_default().to_string_lossy();
         let key = path.to_string_lossy();

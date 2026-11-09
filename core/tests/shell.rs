@@ -8,12 +8,19 @@ fn hashes_present_files_and_skips_missing() {
         &[root.join("zshrc"), root.join("missing")],
         &[root.join("paths.d"), root.join("no-such-dir")],
     );
-    assert_eq!(items.len(), 2);
+    // paths.d/subdir is skipped; the 20-link symlink to a file is followed.
+    assert_eq!(items.len(), 3);
     assert!(items[0].key.ends_with("shell/zshrc"));
     assert_eq!(items[0].fields["size"], "30");
     assert!(items[1].key.ends_with("paths.d/10-example"));
     assert_eq!(items[1].fields["size"], "17");
     assert_ne!(items[0].hash, items[1].hash);
+    assert!(items[2].key.ends_with("paths.d/20-link"));
+    assert_eq!(
+        items[2].fields["file_sha256"],
+        items[1].fields["file_sha256"]
+    );
+    assert!(items.iter().all(|i| !i.fields.contains_key("error")));
 }
 
 #[test]
