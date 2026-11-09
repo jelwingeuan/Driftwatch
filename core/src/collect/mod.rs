@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+pub mod apps;
 pub mod btm;
 pub mod certs;
 pub mod cron;

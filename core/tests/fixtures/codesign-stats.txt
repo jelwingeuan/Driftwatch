@@ -1,0 +1,31 @@
+Executable=/Applications/Stats.app/Contents/MacOS/Stats
+Identifier=eu.exelban.Stats
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=1084 flags=0x10000(runtime) hashes=23+7 location=embedded
+VersionPlatform=1
+VersionMin=786432
+VersionSDK=1769984
+Hash type=sha256 size=32
+CandidateCDHash sha256=2e9a74bbcd706345aeccaf0b6e80e561d4cf0b82
+CandidateCDHashFull sha256=2e9a74bbcd706345aeccaf0b6e80e561d4cf0b8279085282c6311aebaede5bb0
+Hash choices=sha256
+CMSDigest=2e9a74bbcd706345aeccaf0b6e80e561d4cf0b8279085282c6311aebaede5bb0
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=278528
+Executable Segment flags=0x1
+Page size=16384
+CDHash=2e9a74bbcd706345aeccaf0b6e80e561d4cf0b82
+Signature size=8985
+Authority=Developer ID Application: Serhiy Mytrovtsiy (RP2S87B72W)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=1 Nov 2026 at 19:59:37
+Notarization Ticket=stapled
+Info.plist entries=34
+TeamIdentifier=RP2S87B72W
+Runtime Version=27.2.0
+Sealed Resources version=2 rules=13 files=63
+Internal requirements count=1 size=208
+Total signatures=1
+Chosen signature=1
