@@ -9,7 +9,7 @@ The prior-art check ([docs/prior-art.md](/Users/jelwingeuan/Documents/Claude Cod
 | Audience | Non-technical owner; raw details behind a "Details" disclosure |
 | Coverage | Startup items (launch agents/daemons, login/BTM items, cron, shell rc files), system extensions, privacy (TCC) grants, certificates, hosts + DNS, SSH keys (`authorized_keys`, `~/.ssh`), changed app signatures. Browser extensions + config profiles → v1.1 |
 | Shape | Menu bar extra + a window |
-| Stack | Rust core (scan, diff, store, explain) + SwiftUI app, via UniFFI |
+| Stack | Rust core (scan, diff, store, explain) + SwiftUI app, via UniFFI. Not Rust-only: any piece may use another language or tool (Swift, shell, a native API) when that is the smaller, more reliable option (ponytail) |
 | Undo | Read-only by default; reversible disable for startup items only (bootout + move plist to `~/Library/Application Support/Driftwatch/Quarantine`, restorable). Never deletes |
 | Explanations | Offline: per-category templates + bundled catalog of known apps/team IDs. Nothing leaves the Mac |
 | Signing | Ad hoc signed DMG (first-run doc: right-click → Open) |
