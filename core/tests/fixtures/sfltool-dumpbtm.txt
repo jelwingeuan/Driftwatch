@@ -1,0 +1,57 @@
+========================
+ Records for UID -2 : FFFFEEEE-DDDD-CCCC-BBBB-AAAAFFFFFFFE
+========================
+
+ ServiceManagement migrated: true
+ LaunchServices registered: false
+
+ Items:
+
+ #1:
+                 UUID: 6900E6A3-E485-42BA-AA78-A8249A0EAD1C
+                 Name: Adobe Creative Cloud
+       Developer Name: Adobe Creative Cloud
+                 Type: developer (0x20)
+                Flags: [ curated ] (0x4)
+          Disposition: [disabled, allowed, not notified] (0x2)
+           Identifier: Adobe Creative Cloud
+                  URL: (null)
+           Generation: 0
+  Embedded Item Identifiers:
+    #1: 16.com.adobe.acc.installer.v2
+
+ #2:
+                 UUID: F62F75F6-D9D0-4283-A848-FF98A6F9672A
+                 Name: com.adobe.acc.installer.v2
+       Developer Name: Adobe Creative Cloud
+      Team Identifier: JQ525L2MZD
+                 Type: legacy daemon (0x10010)
+                Flags: [ legacy, curated ] (0x5)
+          Disposition: [enabled, disallowed, notified] (0x9)
+           Identifier: 16.com.adobe.acc.installer.v2
+                  URL: /Library/LaunchDaemons/com.adobe.acc.installer.v2.plist
+      Executable Path: /Library/PrivilegedHelperTools/com.adobe.acc.installer.v2
+           Generation: 6
+    Assoc. Bundle IDs: [ com.adobe.acc.AdobeCreativeCloud ]
+    Parent Identifier: Adobe Creative Cloud
+
+========================
+ Records for UID 0 : FFFFEEEE-DDDD-CCCC-BBBB-AAAA00000000
+========================
+
+ ServiceManagement migrated: false
+ LaunchServices registered: false
+
+ Items:
+
+ #1:
+                 UUID: 6900E6A3-E485-42BA-AA78-A8249A0EAD1C
+                 Name: Adobe Creative Cloud
+       Developer Name: Adobe Creative Cloud
+                 Type: developer (0x20)
+                Flags: [ curated ] (0x4)
+          Disposition: [disabled, allowed, not notified] (0x2)
+           Identifier: Adobe Creative Cloud
+                  URL: (null)
+           Generation: 5
+

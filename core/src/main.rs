@@ -1,4 +1,4 @@
-use driftwatch::collect::launchd;
+use driftwatch::collect::{btm, launchd};
 use driftwatch::diff::{diff, ChangeKind};
 use driftwatch::store::{self, Store};
 
@@ -15,7 +15,8 @@ fn main() {
 }
 
 fn scan() -> Result<(), Box<dyn std::error::Error>> {
-    let items = launchd::collect();
+    let mut items = launchd::collect();
+    items.extend(btm::collect());
     let mut store = Store::open(&store::default_path().map_err(|_| "HOME is not set")?)?;
     let previous = store.latest_items()?;
     store.save_snapshot(&items)?;
