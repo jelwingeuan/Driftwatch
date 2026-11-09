@@ -7,6 +7,15 @@ pub struct Store {
     conn: Connection,
 }
 
+/// A saved scan. `taken_at` is RFC 3339 in UTC, e.g. "2026-11-09T15:45:29Z".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Snapshot {
+    pub id: i64,
+    pub taken_at: String,
+}
+
+const TAKEN_AT: &str = "strftime('%Y-%m-%dT%H:%M:%SZ', taken_at, 'unixepoch')";
+
 /// ~/Library/Application Support/Driftwatch/driftwatch.db
 pub fn default_path() -> Result<PathBuf, std::env::VarError> {
     let home = std::env::var("HOME")?;
@@ -38,13 +47,22 @@ impl Store {
         Ok(Store { conn })
     }
 
-    pub fn save_snapshot(&mut self, items: &[Item]) -> Result<i64> {
+    pub fn save_snapshot(&mut self, items: &[Item]) -> Result<Snapshot> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs() as i64);
         let tx = self.conn.transaction()?;
-        tx.execute("INSERT INTO snapshots (taken_at) VALUES (?1)", [now])?;
-        let id = tx.last_insert_rowid();
+        let snapshot = tx.query_row(
+            &format!("INSERT INTO snapshots (taken_at) VALUES (?1) RETURNING id, {TAKEN_AT}"),
+            [now],
+            |r| {
+                Ok(Snapshot {
+                    id: r.get(0)?,
+                    taken_at: r.get(1)?,
+                })
+            },
+        )?;
+        let id = snapshot.id;
         {
             let mut stmt = tx.prepare(
                 "INSERT INTO items (snapshot_id, category, key, json) VALUES (?1, ?2, ?3, ?4)",
@@ -55,7 +73,31 @@ impl Store {
             }
         }
         tx.commit()?;
-        Ok(id)
+        Ok(snapshot)
+    }
+
+    /// Every snapshot, newest first.
+    pub fn snapshots(&self) -> Result<Vec<Snapshot>> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT id, {TAKEN_AT} FROM snapshots ORDER BY id DESC"
+        ))?;
+        let rows = stmt.query_map([], |r| {
+            Ok(Snapshot {
+                id: r.get(0)?,
+                taken_at: r.get(1)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Items of one snapshot, in the order they were saved.
+    pub fn items(&self, snapshot_id: i64) -> Result<Vec<Item>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT json FROM items WHERE snapshot_id = ?1 ORDER BY rowid")?;
+        let rows = stmt.query_map([snapshot_id], |r| r.get::<_, String>(0))?;
+        rows.map(|json| json.map(|j| serde_json::from_str(&j).expect("stored Item json is valid")))
+            .collect()
     }
 
     /// Items of the most recent snapshot, or None if there is no snapshot yet.
@@ -63,15 +105,7 @@ impl Store {
         let id: Option<i64> = self
             .conn
             .query_row("SELECT MAX(id) FROM snapshots", [], |r| r.get(0))?;
-        let Some(id) = id else { return Ok(None) };
-        let mut stmt = self
-            .conn
-            .prepare("SELECT json FROM items WHERE snapshot_id = ?1 ORDER BY rowid")?;
-        let items = stmt
-            .query_map([id], |r| r.get::<_, String>(0))?
-            .map(|json| json.map(|j| serde_json::from_str(&j).expect("stored Item json is valid")))
-            .collect::<Result<Vec<Item>>>()?;
-        Ok(Some(items))
+        id.map(|id| self.items(id)).transpose()
     }
 }
 
@@ -99,7 +133,7 @@ mod tests {
         let mut store = Store::open_in_memory().unwrap();
         let a = store.save_snapshot(&[item("a")]).unwrap();
         let b = store.save_snapshot(&[item("b"), item("c")]).unwrap();
-        assert!(b > a);
+        assert!(b.id > a.id);
         assert_eq!(
             store.latest_items().unwrap(),
             Some(vec![item("b"), item("c")])

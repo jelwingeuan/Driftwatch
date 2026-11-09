@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 pub mod collect;
 pub mod diff;
+pub mod report;
 pub mod store;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
