@@ -63,7 +63,7 @@ struct TimelineWindow: View {
 
     private var sections: [Entry] {
         (model.history?.entries ?? []).compactMap { entry in
-            let changes = entry.changes.filter { category.contains($0) && matchesSearch($0) }
+            let changes = entry.distinctChanges.filter { category.contains($0) && matchesSearch($0) }
             return changes.isEmpty
                 ? nil : Entry(snapshotID: entry.snapshotID, takenAt: entry.takenAt, changes: changes)
         }
@@ -157,11 +157,12 @@ struct TimelineWindow: View {
         search.isEmpty
             || change.title.localizedCaseInsensitiveContains(search)
             || change.key.localizedCaseInsensitiveContains(search)
+            || (change.summary ?? "").localizedCaseInsensitiveContains(search)
     }
 
     private func count(in category: Category) -> Int {
         (model.history?.entries ?? []).reduce(0) { total, entry in
-            total + entry.changes.count(where: category.contains)
+            total + entry.distinctChanges.count(where: category.contains)
         }
     }
 }
@@ -199,15 +200,48 @@ private struct ChangeRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text(change.error ?? change.key)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(change.error == nil ? 1 : 2)
-                    .truncationMode(.middle)
+                if let line = change.error ?? change.summary {
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                }
+                if change.risk == "medium" || change.risk == "high" || change.addedBy != nil {
+                    HStack(spacing: 8) {
+                        RiskBadge(change: change)
+                        if let addedBy = change.addedByText {
+                            Text(addedBy).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A risk hint for medium and high risk only: symbol and words, never colour alone.
+struct RiskBadge: View {
+    let change: Change
+
+    var body: some View {
+        if let style {
+            Label(style.text, systemImage: style.symbol)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(style.tint)
+                .help(change.riskReason ?? "")
+                .accessibilityLabel([style.text, change.riskReason].compactMap { $0 }.joined(separator: ": "))
+        }
+    }
+
+    private var style: (text: String, symbol: String, tint: Color)? {
+        switch change.risk {
+        case "high": ("High risk", "exclamationmark.octagon.fill", .red)
+        case "medium": ("Worth a look", "exclamationmark.triangle", .orange)
+        default: nil
+        }
     }
 }
 

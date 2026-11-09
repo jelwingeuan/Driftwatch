@@ -55,7 +55,18 @@ struct Entry: Decodable, Identifiable {
     let changes: [Change]
 
     var id: Int64 { snapshotID }
-    var rows: [Row] { changes.map { Row(snapshotID: snapshotID, takenAt: takenAt, change: $0) } }
+    var rows: [Row] { distinctChanges.map { Row(snapshotID: snapshotID, takenAt: takenAt, change: $0) } }
+
+    /// The changes minus login & background (BTM) records that repeat a startup
+    /// item changed in the same scan: BTM also lists every launch agent/daemon
+    /// plist, so one item would otherwise show and count twice.
+    var distinctChanges: [Change] {
+        let plists = Set(changes.filter { $0.category == "launchd" }.map(\.fileName))
+        return changes.filter { change in
+            guard change.category == "btm", let url = change.fields["url"], url.hasSuffix(".plist") else { return true }
+            return !plists.contains(URL(fileURLWithPath: url).lastPathComponent)
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case snapshotID = "snapshot_id", takenAt = "taken_at", changes
@@ -74,13 +85,36 @@ struct Change: Decodable, Hashable {
     let fields: [String: String]
     let oldFields: [String: String]?
     let teamID: String?
+    // From the CLI's explain step; optional so older output still decodes.
+    let summary: String?
+    let risk: String?
+    let riskReason: String?
+    let addedBy: String?
+    let confidence: String?
+    let fieldLabels: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case kind, category, key, title, fields, oldFields = "old_fields", teamID = "team_id"
+        case summary, risk, riskReason = "risk_reason", addedBy = "added_by", confidence
+        case fieldLabels = "field_labels"
     }
 
     /// Why the item could not be read, if it could not.
     var error: String? { fields["error"] }
+
+    /// The plain label for a raw field name.
+    func label(_ field: String) -> String { fieldLabels?[field] ?? field }
+
+    /// "Added by Google", with "likely" when only guessed from a name or path.
+    var addedByText: String? {
+        guard let addedBy else { return nil }
+        return confidence == "likely" ? "Added by \(addedBy) (likely)" : "Added by \(addedBy)"
+    }
+
+    /// Hashes mean nothing to a person; they stay in Details.
+    static let hashFields: Set<String> = ["file_sha256", "cdhash", "sha1"]
+
+    var fileName: String { URL(fileURLWithPath: key).lastPathComponent }
 }
 
 /// A change together with the scan that found it.
@@ -124,17 +158,15 @@ extension Change.Kind {
     }
 }
 
-/// A sidebar entry. `id` is the CLI's category name ("all" for everything);
-/// `alsoShows` lists other CLI categories that belong under it.
+/// A sidebar entry. `id` is the CLI's category name ("all" for everything).
 struct Category: Identifiable, Hashable {
     let id: String
     let name: String
     let symbol: String
-    var alsoShows: Set<String> = []
 
     static let all: [Category] = [
         Category(id: "all", name: "All changes", symbol: "clock.arrow.circlepath"),
-        Category(id: "launchd", name: "Startup items", symbol: "power", alsoShows: ["btm"]),
+        Category(id: "launchd", name: "Startup items", symbol: "power"),
         Category(id: "btm", name: "Login & background", symbol: "person.crop.circle.badge.clock"),
         Category(id: "cron", name: "Scheduled", symbol: "calendar.badge.clock"),
         Category(id: "shell", name: "Shell startup", symbol: "terminal"),
@@ -153,6 +185,6 @@ struct Category: Identifiable, Hashable {
     }
 
     func contains(_ change: Change) -> Bool {
-        id == "all" || id == change.category || alsoShows.contains(change.category)
+        id == "all" || id == change.category
     }
 }

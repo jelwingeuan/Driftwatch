@@ -47,7 +47,7 @@ final class AppModel {
     var latestScanChangeCount: Int {
         guard let history, let entry = history.entries.first,
               entry.snapshotID == history.latest?.snapshotID else { return 0 }
-        return entry.changes.count
+        return entry.distinctChanges.count
     }
 
     func row(id: String?) -> Row? {

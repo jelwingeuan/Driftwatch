@@ -26,6 +26,16 @@ struct InspectorView: View {
                     Text(change.title)
                         .font(.title3.weight(.semibold))
                         .textSelection(.enabled)
+                    if let summary = change.summary {
+                        Text(summary).textSelection(.enabled)
+                    }
+                    RiskBadge(change: change)
+                    if change.risk == "medium" || change.risk == "high", let reason = change.riskReason {
+                        Text(reason).foregroundStyle(.secondary)
+                    }
+                    if let addedBy = change.addedByText {
+                        Text(addedBy).foregroundStyle(.secondary)
+                    }
                     Label(change.kind.label, systemImage: change.kind.symbol)
                         .foregroundStyle(change.kind.tint)
                     Label(Category.named(change.category).name, systemImage: Category.named(change.category).symbol)
@@ -47,15 +57,19 @@ struct InspectorView: View {
                 Section("What changed") {
                     ForEach(changedKeys(old, change.fields), id: \.self) { key in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(key).font(.headline)
-                            Grid(alignment: .leadingFirstTextBaseline, verticalSpacing: 2) {
-                                GridRow {
-                                    Text("Before").foregroundStyle(.secondary)
-                                    Text(old[key] ?? "(none)").textSelection(.enabled)
-                                }
-                                GridRow {
-                                    Text("Now").foregroundStyle(.secondary)
-                                    Text(change.fields[key] ?? "(none)").textSelection(.enabled)
+                            Text(change.label(key)).font(.headline)
+                            if Change.hashFields.contains(key) {
+                                Text("Changed").foregroundStyle(.secondary)
+                            } else {
+                                Grid(alignment: .leadingFirstTextBaseline, verticalSpacing: 2) {
+                                    GridRow {
+                                        Text("Before").foregroundStyle(.secondary)
+                                        Text(old[key] ?? "(none)").textSelection(.enabled)
+                                    }
+                                    GridRow {
+                                        Text("Now").foregroundStyle(.secondary)
+                                        Text(change.fields[key] ?? "(none)").textSelection(.enabled)
+                                    }
                                 }
                             }
                         }
@@ -64,8 +78,8 @@ struct InspectorView: View {
             }
 
             Section(change.kind == .removed ? "Last known values" : "Values") {
-                ForEach(change.fields.keys.sorted(), id: \.self) { key in
-                    LabeledContent(key) {
+                ForEach(change.fields.keys.filter { !Change.hashFields.contains($0) }.sorted(), id: \.self) { key in
+                    LabeledContent(change.label(key)) {
                         Text(change.fields[key] ?? "").textSelection(.enabled)
                     }
                 }
@@ -77,6 +91,14 @@ struct InspectorView: View {
                     LabeledContent("Key") { Text(change.key).textSelection(.enabled) }
                     LabeledContent("Team ID", value: change.teamID ?? "None")
                     LabeledContent("Scan", value: "#\(row.snapshotID)")
+                    ForEach(change.fields.keys.sorted(), id: \.self) { key in
+                        LabeledContent(key) { Text(change.fields[key] ?? "").textSelection(.enabled) }
+                    }
+                    if let old = change.oldFields {
+                        ForEach(changedKeys(old, change.fields), id: \.self) { key in
+                            LabeledContent("\(key) before") { Text(old[key] ?? "(none)").textSelection(.enabled) }
+                        }
+                    }
                 }
             }
         }
