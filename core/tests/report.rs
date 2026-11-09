@@ -1,5 +1,5 @@
 use driftwatch::diff::diff;
-use driftwatch::report::{change_json, history, scan_json, title};
+use driftwatch::report::{change_json, history, item_json, scan_json};
 use driftwatch::store::Store;
 use driftwatch::Item;
 use serde_json::Value;
@@ -23,25 +23,30 @@ fn is_rfc3339_utc(s: &str) -> bool {
 }
 
 #[test]
-fn title_prefers_label_then_name_then_file_name_then_key() {
+fn item_json_explains_the_item() {
     let plist = "/Library/LaunchAgents/com.example.agent.plist";
-    assert_eq!(
-        title(&item("launchd", plist, &[("Label", "com.example")])),
-        "com.example"
-    );
-    assert_eq!(
-        title(&item("btm", "uid 501: x", &[("name", "Zoom")])),
-        "Zoom"
-    );
-    assert_eq!(
-        title(&item("launchd", plist, &[("error", "bad")])),
-        "com.example.agent.plist"
-    );
-    assert_eq!(
-        title(&item("tcc", "k", &[("client", "/usr/bin/ssh")])),
-        "ssh"
-    );
-    assert_eq!(title(&item("cron", "0 * * * * job", &[])), "0 * * * * job");
+    let v = item_json(&item(
+        "launchd",
+        plist,
+        &[
+            ("Label", "com.example"),
+            ("RunAtLoad", "true"),
+            ("odd", "x"),
+        ],
+    ));
+    assert_eq!(v["title"], "com.example");
+    assert_eq!(v["summary"], "Starts a program every time you log in.");
+    assert_eq!(v["risk"], "medium");
+    assert!(v["risk_reason"].is_string());
+    assert!(v["added_by"].is_null());
+    assert!(v["confidence"].is_null());
+    assert_eq!(v["field_labels"]["Label"], "Name");
+    assert_eq!(v["field_labels"]["RunAtLoad"], "Starts at login");
+    assert_eq!(v["field_labels"]["odd"], "odd");
+    // Unreadable items fall back to the file name.
+    let broken = item_json(&item("launchd", plist, &[("error", "bad")]));
+    assert_eq!(broken["title"], "com.example.agent.plist");
+    assert_eq!(broken["risk"], "low");
 }
 
 #[test]
@@ -60,11 +65,17 @@ fn change_json_shape() {
     assert_eq!(
         keys(&modified),
         [
+            "added_by",
             "category",
+            "confidence",
+            "field_labels",
             "fields",
             "key",
             "kind",
             "old_fields",
+            "risk",
+            "risk_reason",
+            "summary",
             "team_id",
             "title"
         ]
@@ -73,6 +84,7 @@ fn change_json_shape() {
     assert_eq!(modified["title"], "a");
     assert_eq!(modified["fields"]["Program"], "/new");
     assert_eq!(modified["old_fields"]["Program"], "/old");
+    assert_eq!(modified["field_labels"]["Program"], "Program");
     assert!(modified["team_id"].is_null());
 
     let removed = change_json(&diff(&[old], &[])[0]);

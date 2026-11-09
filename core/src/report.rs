@@ -1,32 +1,33 @@
 //! JSON for the app: one scan's changes (`scan --json`) and the timeline (`history --json`).
 use crate::diff::{diff, Change, ChangeKind};
+use crate::explain::{explain, field_label};
 use crate::store::{Snapshot, Store};
 use crate::Item;
-use serde_json::{json, Value};
-use std::path::Path;
+use serde_json::{json, Map, Value};
 
-/// The best human name for an item: its Label, name, label, client or identifier,
-/// else the key. A path is shortened to its file name.
-pub fn title(item: &Item) -> String {
-    let best = ["Label", "name", "label", "client", "identifier"]
-        .iter()
-        .find_map(|f| item.fields.get(*f).filter(|v| !v.is_empty()))
-        .unwrap_or(&item.key);
-    match Path::new(best).file_name() {
-        Some(name) if best.starts_with('/') => name.to_string_lossy().into_owned(),
-        _ => best.clone(),
-    }
-}
-
-/// `{category, key, title, fields, team_id}`
+/// `{category, key, fields, team_id, field_labels}` plus the `explain` fields:
+/// `title, summary, risk, risk_reason, added_by, confidence`.
 pub fn item_json(item: &Item) -> Value {
+    let e = explain(item);
     json!({
         "category": item.category,
         "key": item.key,
-        "title": title(item),
+        "title": e.title,
+        "summary": e.summary,
+        "risk": e.risk,
+        "risk_reason": e.risk_reason,
+        "added_by": e.added_by,
+        "confidence": e.confidence,
         "fields": item.fields,
+        "field_labels": labels(item.fields.keys()),
         "team_id": item.team_id,
     })
+}
+
+/// Raw field name → plain label, for each name given.
+fn labels<'a>(names: impl Iterator<Item = &'a String>) -> Value {
+    let map: Map<String, Value> = names.map(|n| (n.clone(), json!(field_label(n)))).collect();
+    Value::Object(map)
 }
 
 /// `item_json` of the new (or, when removed, the old) item, plus `kind` and
@@ -44,6 +45,9 @@ pub fn change_json(c: &Change) -> Value {
     };
     let mut v = item_json(item);
     v["kind"] = json!(kind);
+    if let Some(old) = old_fields {
+        v["field_labels"] = labels(item.fields.keys().chain(old.keys()));
+    }
     v["old_fields"] = json!(old_fields);
     v
 }
