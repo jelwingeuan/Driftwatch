@@ -9,6 +9,7 @@ pub mod cron;
 pub mod launchd;
 pub mod shell;
 pub mod sysext;
+pub mod tcc;
 
 /// Run a tool and return its stdout, or a one-line error naming what failed.
 pub(crate) fn run(cmd: &str, args: &[&str]) -> Result<String, String> {
