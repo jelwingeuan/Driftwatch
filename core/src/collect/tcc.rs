@@ -23,8 +23,17 @@ pub fn collect() -> Vec<Item> {
 /// A missing DB yields nothing; an unreadable one yields a single error Item.
 pub fn read_db(path: &Path, scope: &str) -> Vec<Item> {
     // Not `Path::exists`: it hides permission errors, which must surface as an error Item.
-    if matches!(std::fs::metadata(path), Err(e) if e.kind() == std::io::ErrorKind::NotFound) {
-        return Vec::new();
+    // A stat, not an open, so a pipe in its place can't stall the scan.
+    match std::fs::metadata(path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+        Ok(m) if !m.is_file() => {
+            return vec![error_item(
+                CATEGORY,
+                &path.to_string_lossy(),
+                "not a regular file",
+            )]
+        }
+        _ => {}
     }
     query(path, scope).unwrap_or_else(|e| {
         let msg = format!("needs Full Disk Access ({e})");

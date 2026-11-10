@@ -1,4 +1,4 @@
-use super::{error_item, run};
+use super::{error_item, output, run, TOOL_LIMIT};
 use crate::Item;
 use std::collections::BTreeMap;
 use std::process::Command;
@@ -11,11 +11,9 @@ pub fn collect() -> Vec<Item> {
     let mut items = Vec::new();
     let mut trust = Vec::new();
     for (args, domain) in [(&["-d"][..], "admin"), (&[][..], "user")] {
-        let out = Command::new("security")
-            .arg("dump-trust-settings")
-            .args(args)
-            .output();
-        match out {
+        let mut cmd = Command::new("security");
+        cmd.arg("dump-trust-settings").args(args);
+        match output(&mut cmd, TOOL_LIMIT) {
             Ok(o) if o.status.success() => {
                 trust.extend(parse_trust(&String::from_utf8_lossy(&o.stdout), domain))
             }
@@ -24,11 +22,7 @@ pub fn collect() -> Vec<Item> {
                 let err = String::from_utf8_lossy(&o.stderr).trim().to_string();
                 items.push(error_item(CATEGORY, &format!("{domain} trust"), &err));
             }
-            Err(e) => items.push(error_item(
-                CATEGORY,
-                &format!("{domain} trust"),
-                &e.to_string(),
-            )),
+            Err(e) => items.push(error_item(CATEGORY, &format!("{domain} trust"), &e)),
         }
     }
     let mut args = vec!["find-certificate", "-a", "-Z"];

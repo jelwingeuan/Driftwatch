@@ -1,3 +1,4 @@
+use super::read_file;
 use crate::Item;
 use plist::Value;
 use sha2::{Digest, Sha256};
@@ -56,7 +57,7 @@ pub fn collect_dirs(dirs: &[(PathBuf, &str)]) -> Vec<Item> {
 
 fn read_plist(path: &Path, scope: &str) -> Item {
     let key = path.to_string_lossy();
-    let bytes = match std::fs::read(path) {
+    let bytes = match read_file(path) {
         Ok(b) => b,
         Err(e) => return error_item(&key, scope, &e.to_string()),
     };

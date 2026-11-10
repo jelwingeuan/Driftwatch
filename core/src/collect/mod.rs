@@ -1,7 +1,8 @@
 use crate::Item;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use std::io::Read;
+use std::io::{self, Read};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
@@ -17,12 +18,17 @@ pub mod ssh;
 pub mod sysext;
 pub mod tcc;
 
-/// Run a tool and return its stdout, or a one-line error naming what failed.
+/// How long a tool may run before it is stopped: long enough to type the admin
+/// password `sfltool dumpbtm` asks for.
+pub(crate) const TOOL_LIMIT: Duration = Duration::from_secs(120);
+
+/// The most a collector reads from one file.
+const FILE_LIMIT: u64 = 16 << 20;
+
+/// Run a tool (stopped after `TOOL_LIMIT`) and return its stdout, or a one-line
+/// error naming what failed.
 pub(crate) fn run(cmd: &str, args: &[&str]) -> Result<String, String> {
-    let out = Command::new(cmd)
-        .args(args)
-        .output()
-        .map_err(|e| format!("{cmd}: {e}"))?;
+    let out = output(Command::new(cmd).args(args), TOOL_LIMIT)?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
         let last = err.lines().last().unwrap_or("").trim();
@@ -74,6 +80,36 @@ pub(crate) fn output(cmd: &mut Command, limit: Duration) -> Result<Output, Strin
     })
 }
 
+/// A file's bytes, read so nothing on disk can stall or flood the scan: opened with
+/// O_NOFOLLOW | O_NONBLOCK, so a pipe or device can't block, and only a regular
+/// file of at most 16 MiB is read. A symlink (dotfiles often are) is resolved
+/// first and its target gets the same checks.
+pub(crate) fn read_file(path: &Path) -> io::Result<Vec<u8>> {
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(std::fs::canonicalize(path)?)?;
+    if !file.metadata()?.is_file() {
+        return Err(io::Error::other("not a regular file"));
+    }
+    let mut bytes = Vec::new();
+    file.take(FILE_LIMIT + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > FILE_LIMIT {
+        return Err(io::Error::other("larger than 16 MiB"));
+    }
+    Ok(bytes)
+}
+
+/// `read_file` as UTF-8 text.
+pub(crate) fn read_text(path: &Path) -> io::Result<String> {
+    String::from_utf8(read_file(path)?).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        )
+    })
+}
+
 /// An Item that records why something could not be read.
 pub(crate) fn error_item(category: &str, key: &str, error: &str) -> Item {
     let fields = BTreeMap::from([("error".to_string(), error.to_string())]);
@@ -84,7 +120,7 @@ pub(crate) fn error_item(category: &str, key: &str, error: &str) -> Item {
 /// an error Item when it exists but cannot be read.
 pub(crate) fn file_item(category: &str, path: &Path) -> Option<Item> {
     let key = path.to_string_lossy();
-    match std::fs::read(path) {
+    match read_file(path) {
         Ok(bytes) => Some(Item::new(
             category,
             &key,

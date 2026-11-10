@@ -1,4 +1,4 @@
-use super::{error_item, file_item, list_files, run};
+use super::{error_item, file_item, list_files, read_text, run};
 use crate::Item;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -7,7 +7,7 @@ pub const CATEGORY: &str = "network";
 
 /// /etc/hosts entries, /etc/resolver/* files and the DNS servers in use.
 pub fn collect() -> Vec<Item> {
-    let mut items = match std::fs::read_to_string("/etc/hosts") {
+    let mut items = match read_text(Path::new("/etc/hosts")) {
         Ok(text) => parse_hosts(&text),
         Err(e) => vec![error_item(CATEGORY, "/etc/hosts", &e.to_string())],
     };

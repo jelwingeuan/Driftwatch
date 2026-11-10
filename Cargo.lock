@@ -78,6 +78,7 @@ dependencies = [
 name = "driftwatch-core"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "plist",
  "rusqlite",
  "serde",

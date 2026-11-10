@@ -142,8 +142,12 @@ struct TimelineWindow: View {
                     NSWorkspace.shared.open(url)
                 }
             }
-            if model.history != nil, let error = model.lastError {
-                Banner(symbol: "exclamationmark.triangle", text: "The last scan didn’t finish: \(error)")
+            if model.history != nil {
+                TimelineView(.everyMinute) { context in
+                    if let warning = model.scanWarning(now: context.date) {
+                        Banner(symbol: "exclamationmark.triangle", text: warning)
+                    }
+                }
             }
         }
     }

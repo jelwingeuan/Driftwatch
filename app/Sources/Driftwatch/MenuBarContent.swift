@@ -19,10 +19,12 @@ struct MenuBarContent: View {
                 }
             }
 
-            if let error = model.lastError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+            TimelineView(.everyMinute) { context in
+                if let warning = model.scanWarning(now: context.date) {
+                    Label(warning, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Divider()

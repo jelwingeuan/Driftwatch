@@ -115,6 +115,18 @@ func decodesRealHistoryOutput() async throws {
     #expect(AppModel.skipsLoginItems(scheduled: true, lastFullScan: now - 23 * hour, now: now))
 }
 
+@Test func aFailedOrOldScanShowsAWarning() {
+    let now = Date(timeIntervalSince1970: 1_794_239_129)
+    let minute: TimeInterval = 60
+    #expect(AppModel.scanWarning(error: nil, lastScan: now - 59 * minute, isScanning: false, now: now) == nil)
+    let failed = AppModel.scanWarning(error: "It took longer than 10 minutes and was stopped.", lastScan: now, isScanning: false, now: now)
+    #expect(failed == "Scan failed. It took longer than 10 minutes and was stopped.")
+    let old = AppModel.scanWarning(error: nil, lastScan: now - 61 * minute, isScanning: false, now: now)
+    #expect(old?.hasPrefix("Scan is out of date.") == true)
+    // A running scan is about to catch up.
+    #expect(AppModel.scanWarning(error: nil, lastScan: now - 61 * minute, isScanning: true, now: now) == nil)
+}
+
 @Test func unreadableItemsShowTheirSummaryAndNeverTheRedRemovedSymbol() throws {
     func change(_ kind: String) throws -> Change {
         let json = #"{"category":"btm","fields":{"error":"sfltool failed (needs admin rights)"},"key":"sfltool dumpbtm","kind":"\#(kind)","title":"Couldn’t read login items","summary":"This part needs your admin password."}"#

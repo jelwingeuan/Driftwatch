@@ -1,4 +1,4 @@
-use super::{error_item, list_dir, output};
+use super::{error_item, list_dir, output, read_file, TOOL_LIMIT};
 use crate::Item;
 use plist::Value;
 use std::collections::BTreeMap;
@@ -45,13 +45,14 @@ pub fn collect() -> Vec<Item> {
 /// One app: its signature details, whether the signature checks out, and its version.
 pub fn app_item(app: &Path) -> Item {
     let key = app.to_string_lossy();
-    let out = match Command::new("codesign")
-        .args(["-dv", "--verbose=4"])
-        .arg(app)
-        .output()
-    {
+    let out = match output(
+        Command::new("codesign")
+            .args(["-dv", "--verbose=4"])
+            .arg(app),
+        TOOL_LIMIT,
+    ) {
         Ok(o) => o,
-        Err(e) => return error_item(CATEGORY, &key, &format!("codesign: {e}")),
+        Err(e) => return error_item(CATEGORY, &key, &e),
     };
     let text = String::from_utf8_lossy(&out.stderr);
     let mut fields = if out.status.success() {
@@ -64,7 +65,11 @@ pub fn app_item(app: &Path) -> Item {
         let err = text.lines().last().unwrap_or("").trim();
         BTreeMap::from([("error".to_string(), format!("codesign: {err}"))])
     };
-    if let Ok(Value::Dictionary(d)) = Value::from_file(app.join("Contents/Info.plist")) {
+    let info = read_file(&app.join("Contents/Info.plist"));
+    if let Some(Value::Dictionary(d)) = info
+        .ok()
+        .and_then(|b| Value::from_reader(std::io::Cursor::new(b)).ok())
+    {
         if let Some(v) = d
             .get("CFBundleShortVersionString")
             .and_then(Value::as_string)

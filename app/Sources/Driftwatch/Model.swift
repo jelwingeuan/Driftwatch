@@ -14,7 +14,7 @@ final class AppModel {
     private var seenSnapshotID = Int64(UserDefaults.standard.integer(forKey: "seenSnapshotID"))
     @ObservationIgnored private var timer: Timer?
 
-    static let scanInterval: TimeInterval = 30 * 60
+    nonisolated static let scanInterval: TimeInterval = 30 * 60
     /// How long scheduled scans may leave out login & background items.
     nonisolated static let loginItemsInterval: TimeInterval = 24 * 60 * 60
     private static let lastFullScanKey = "lastFullScan"
@@ -31,6 +31,19 @@ final class AppModel {
     nonisolated static func skipsLoginItems(scheduled: Bool, lastFullScan: Date?, now: Date = .now) -> Bool {
         guard scheduled, let lastFullScan else { return false }
         return now.timeIntervalSince(lastFullScan) <= loginItemsInterval
+    }
+
+    /// A warning in plain words, or nil: the last scan (or timeline read) failed, or
+    /// no scan has finished for over two intervals and none is running to catch up.
+    nonisolated static func scanWarning(error: String?, lastScan: Date?, isScanning: Bool, now: Date = .now) -> String? {
+        if let error { return "Scan failed. \(error)" }
+        guard !isScanning, let lastScan, now.timeIntervalSince(lastScan) > 2 * scanInterval else { return nil }
+        let when = lastScan.formatted(date: .abbreviated, time: .shortened)
+        return "Scan is out of date. Driftwatch hasn’t finished a scan since \(when)."
+    }
+
+    func scanWarning(now: Date) -> String? {
+        Self.scanWarning(error: lastError, lastScan: history?.latest?.takenAt, isScanning: isScanning, now: now)
     }
 
     /// Load the timeline, then scan if the last scan is missing or older than the interval.
@@ -103,15 +116,21 @@ final class AppModel {
 enum CLI {
     enum Failure: LocalizedError {
         case notFound
+        case timedOut
         case failed(String)
 
         var errorDescription: String? {
             switch self {
             case .notFound: "Driftwatch’s scanner is missing. Reinstall Driftwatch to fix this."
+            case .timedOut: "It took longer than \(Int(CLI.timeout / 60)) minutes and was stopped."
             case .failed(let message): message
             }
         }
     }
+
+    /// How long the scanner may run before it is stopped, so a stuck scan can't
+    /// leave Driftwatch waiting forever.
+    static let timeout: TimeInterval = 10 * 60
 
     /// Next to the app's own executable (named `driftwatch-cli`, since the bundle's
     /// file system may not tell `driftwatch` from `Driftwatch`), or `$DRIFTWATCH_CLI`
@@ -145,10 +164,17 @@ enum CLI {
         process.standardOutput = stdout
         process.standardError = stderr
         try process.run()
+        // Stopping it closes its pipes, so the reads below return.
+        let stop = DispatchWorkItem { process.terminate() }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: stop)
         // The CLI writes at most one short line to stderr, so reading stdout first cannot stall.
         let output = stdout.fileHandleForReading.readDataToEndOfFile()
         let errors = stderr.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        stop.cancel()
+        if process.terminationReason == .uncaughtSignal, process.terminationStatus == SIGTERM {
+            throw Failure.timedOut
+        }
         guard process.terminationStatus == 0 else {
             let message = String(decoding: errors, as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines)

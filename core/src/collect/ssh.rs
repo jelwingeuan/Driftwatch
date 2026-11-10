@@ -1,4 +1,4 @@
-use super::{error_item, file_item, list_files};
+use super::{error_item, file_item, list_files, read_text};
 use crate::Item;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -30,7 +30,7 @@ pub fn collect_ssh_dir(dir: &Path) -> Vec<Item> {
         if name.starts_with("known_hosts") {
             continue; // grows on every new host; not a trust grant
         } else if name == "authorized_keys" || name == "authorized_keys2" {
-            match std::fs::read_to_string(&path) {
+            match read_text(&path) {
                 Ok(text) => items.extend(parse_authorized_keys(&text, &key)),
                 Err(e) => items.push(error_item(CATEGORY, &key, &e.to_string())),
             }

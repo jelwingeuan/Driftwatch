@@ -1,4 +1,4 @@
-use super::{error_item, file_item, list_files};
+use super::{error_item, file_item, list_files, output, TOOL_LIMIT};
 use crate::Item;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -8,7 +8,7 @@ pub const CATEGORY: &str = "cron";
 
 /// The current user's crontab lines plus the scripts in /etc/periodic.
 pub fn collect() -> Vec<Item> {
-    let mut items = match Command::new("crontab").arg("-l").output() {
+    let mut items = match output(Command::new("crontab").arg("-l"), TOOL_LIMIT) {
         Ok(out) if out.status.success() => parse_crontab(&String::from_utf8_lossy(&out.stdout)),
         // "no crontab for <user>" is the normal empty case.
         Ok(out) if String::from_utf8_lossy(&out.stderr).contains("no crontab") => Vec::new(),
@@ -17,7 +17,7 @@ pub fn collect() -> Vec<Item> {
             "crontab -l",
             String::from_utf8_lossy(&out.stderr).trim(),
         )],
-        Err(e) => vec![error_item(CATEGORY, "crontab -l", &e.to_string())],
+        Err(e) => vec![error_item(CATEGORY, "crontab -l", &e)],
     };
     let dirs = ["daily", "weekly", "monthly"].map(|d| PathBuf::from("/etc/periodic").join(d));
     items.extend(collect_periodic(&dirs));

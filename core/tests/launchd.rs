@@ -1,5 +1,6 @@
 use driftwatch::collect::launchd::collect_dirs;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 fn fixtures(sub: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -68,4 +69,54 @@ fn untracked_key_change_changes_hash() {
 
     assert_eq!(before.fields["Label"], after.fields["Label"]);
     assert_ne!(before.hash, after.hash);
+}
+
+#[test]
+fn pipes_and_huge_files_become_error_items_without_hanging() {
+    let dir = std::env::temp_dir().join(format!("driftwatch-special-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    // A named pipe: opening it the usual way waits forever for a writer.
+    let fifo = std::process::Command::new("mkfifo")
+        .arg(dir.join("x.plist"))
+        .status()
+        .unwrap();
+    assert!(fifo.success());
+    std::os::unix::fs::symlink("x.plist", dir.join("pipe-link.plist")).unwrap();
+    std::fs::copy(
+        fixtures("agents/com.example.xml.plist"),
+        dir.join("ok.plist"),
+    )
+    .unwrap();
+    std::os::unix::fs::symlink("ok.plist", dir.join("ok-link.plist")).unwrap();
+    std::fs::File::create(dir.join("big.plist"))
+        .unwrap()
+        .set_len((16 << 20) + 1)
+        .unwrap();
+
+    // Scan on another thread, so a hang fails this test instead of stalling the suite.
+    let (tx, rx) = std::sync::mpsc::channel();
+    let scan = dir.clone();
+    let start = Instant::now();
+    std::thread::spawn(move || tx.send(collect_dirs(&[(scan, "user agent")])));
+    let items = rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the scan hung on a special file");
+    eprintln!("scanned the special files in {:?}", start.elapsed());
+    std::fs::remove_dir_all(&dir).unwrap();
+
+    let item = |name: &str| {
+        items
+            .iter()
+            .find(|i| i.key.ends_with(&format!("/{name}")))
+            .unwrap()
+    };
+    let error = |name: &str| item(name).fields.get("error").map(String::as_str);
+    assert_eq!(error("x.plist"), Some("not a regular file"));
+    assert_eq!(error("pipe-link.plist"), Some("not a regular file"));
+    assert_eq!(error("big.plist"), Some("larger than 16 MiB"));
+    assert_eq!(item("x.plist").fields["scope"], "user agent");
+    // Real plists, and links to them, are still read.
+    assert_eq!(item("ok.plist").fields["Label"], "com.example.xml");
+    assert_eq!(item("ok-link.plist").fields["Label"], "com.example.xml");
 }
