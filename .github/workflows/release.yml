@@ -1,0 +1,21 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Fail here rather than let build-app.sh fall back to a debug build.
+      - run: cargo build --release
+      - run: scripts/build-dmg.sh
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: build/Driftwatch_aarch64.dmg
