@@ -37,16 +37,16 @@
         {
           "kind": "added",
           "category": "tcc",
-          "key": "user: kTCCServiceCamera us.zoom.xos (type 0)",
-          "title": "xos can use your camera",
+          "key": "user: kTCCServiceCamera com.google.Chrome (type 0)",
+          "title": "Chrome can use your camera",
           "summary": "A privacy permission from System Settings › Privacy & Security.",
           "risk": "low",
           "risk_reason": null,
-          "added_by": "Zoom",
+          "added_by": "Google",
           "confidence": "likely",
           "fields": {
             "auth_value": "2",
-            "client": "us.zoom.xos",
+            "client": "com.google.Chrome",
             "client_type": "0",
             "scope": "user",
             "service": "kTCCServiceCamera"
