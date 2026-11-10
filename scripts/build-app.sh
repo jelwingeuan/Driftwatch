@@ -43,5 +43,7 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-codesign --force --deep -s - "$app"
+# Inside out (the CLI, then the app that seals it), with the hardened runtime; no --deep.
+codesign --force --options runtime -s - "$app/Contents/MacOS/driftwatch-cli"
+codesign --force --options runtime -s - "$app"
 echo "Built $app"
