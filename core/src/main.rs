@@ -5,13 +5,16 @@ use driftwatch::store::{self, Store};
 use driftwatch::Collector;
 use std::error::Error;
 
-const USAGE: &str = "usage: driftwatch scan [--json]\n       driftwatch history --json [--limit N]";
+const USAGE: &str = "usage: driftwatch scan [--json] [--skip CATEGORY[,CATEGORY...]]\n       driftwatch history --json [--limit N]";
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let json = args.iter().any(|a| a == "--json");
     let result = match (args.first().map(String::as_str), json) {
-        (Some("scan"), _) => scan(json),
+        (Some("scan"), _) => match skips(&args) {
+            Some(skip) => scan(json, &skip),
+            None => usage(),
+        },
         (Some("history"), true) => match limit(&args) {
             Some(n) => history(n),
             None => usage(),
@@ -35,6 +38,18 @@ fn limit(args: &[String]) -> Option<usize> {
         None => Some(100),
         Some(i) => args.get(i + 1)?.parse().ok(),
     }
+}
+
+/// The categories after each `--skip` (repeatable, or comma-separated); None
+/// when one is missing or not a category.
+fn skips(args: &[String]) -> Option<Vec<&'static str>> {
+    let mut skip = Vec::new();
+    for (i, _) in args.iter().enumerate().filter(|(_, a)| *a == "--skip") {
+        for name in args.get(i + 1)?.split(',') {
+            skip.push(COLLECTORS.iter().find(|(c, _)| *c == name)?.0);
+        }
+    }
+    Some(skip)
 }
 
 fn open_store() -> Result<Store, Box<dyn Error>> {
@@ -61,10 +76,10 @@ const COLLECTORS: [Collector; 10] = [
     (apps::CATEGORY, apps::collect),
 ];
 
-fn scan(json: bool) -> Result<(), Box<dyn Error>> {
+fn scan(json: bool, skip: &[&str]) -> Result<(), Box<dyn Error>> {
     let mut store = open_store()?;
     let previous = store.latest_items()?;
-    let items = driftwatch::collect_all(&COLLECTORS, previous.as_deref().unwrap_or_default());
+    let items = driftwatch::collect_all(&COLLECTORS, previous.as_deref().unwrap_or_default(), skip);
     let snapshot = store.save_snapshot(&items)?;
     let changes = previous
         .as_deref()
@@ -100,4 +115,25 @@ fn scan(json: bool) -> Result<(), Box<dyn Error>> {
         println!("{sign} {word}  {}  {}{detail}", item.category, item.key);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::skips;
+
+    fn args(s: &str) -> Vec<String> {
+        s.split(' ').map(String::from).collect()
+    }
+
+    #[test]
+    fn skip_takes_repeats_and_comma_lists_of_known_categories() {
+        assert_eq!(skips(&args("scan --json")), Some(vec![]));
+        assert_eq!(
+            skips(&args("scan --skip btm,tcc --json --skip apps")),
+            Some(vec!["btm", "tcc", "apps"])
+        );
+        assert_eq!(skips(&args("scan --skip")), None);
+        assert_eq!(skips(&args("scan --skip --json")), None);
+        assert_eq!(skips(&args("scan --skip login")), None);
+    }
 }

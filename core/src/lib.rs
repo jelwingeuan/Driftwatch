@@ -43,16 +43,23 @@ pub fn is_error(item: &Item) -> bool {
 /// its previous real items, unchanged, next to the errors: the failure shows as
 /// the error appearing, not as every item removed and then added back once the
 /// read works again. A fresh error replaces the kept item with the same key.
-pub fn collect_all(collectors: &[Collector], previous: &[Item]) -> Vec<Item> {
+/// A category in `skip` is not read and keeps all its previous items as they
+/// were; one with no previous items is read anyway, so a skip never leaves a
+/// gap that a later scan would show as everything added.
+pub fn collect_all(collectors: &[Collector], previous: &[Item], skip: &[&str]) -> Vec<Item> {
     let mut items = Vec::new();
     for &(category, collect) in collectors {
+        let before = previous.iter().filter(|i| i.category == category);
+        if skip.contains(&category) && before.clone().next().is_some() {
+            items.extend(before.cloned());
+            continue;
+        }
         let mut fresh = collect();
         uniquify_keys(&mut fresh);
         if !fresh.is_empty() && fresh.iter().all(is_error) {
             items.extend(
-                previous
-                    .iter()
-                    .filter(|old| old.category == category && !is_error(old))
+                before
+                    .filter(|old| !is_error(old))
                     .filter(|old| fresh.iter().all(|e| e.key != old.key))
                     .cloned(),
             );

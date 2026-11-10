@@ -15,12 +15,22 @@ final class AppModel {
     @ObservationIgnored private var timer: Timer?
 
     static let scanInterval: TimeInterval = 30 * 60
+    /// How long scheduled scans may leave out login & background items.
+    nonisolated static let loginItemsInterval: TimeInterval = 24 * 60 * 60
+    private static let lastFullScanKey = "lastFullScan"
 
     init() {
         timer = Timer.scheduledTimer(withTimeInterval: Self.scanInterval, repeats: true) { [weak self] _ in
-            Task { await self?.scan() }
+            Task { await self?.scan(scheduled: true) }
         }
         Task { await start() }
+    }
+
+    /// Whether a scan leaves out login & background items, whose reader asks for an
+    /// admin password: scheduled scans do, unless no scan has read them in the last day.
+    nonisolated static func skipsLoginItems(scheduled: Bool, lastFullScan: Date?, now: Date = .now) -> Bool {
+        guard scheduled, let lastFullScan else { return false }
+        return now.timeIntervalSince(lastFullScan) <= loginItemsInterval
     }
 
     /// Load the timeline, then scan if the last scan is missing or older than the interval.
@@ -28,7 +38,7 @@ final class AppModel {
         await reload()
         let last = history?.latest?.takenAt ?? .distantPast
         if history != nil, Date.now.timeIntervalSince(last) > Self.scanInterval {
-            await scan()
+            await scan(scheduled: true)
         }
     }
 
@@ -55,12 +65,18 @@ final class AppModel {
         return history?.rows.first { $0.id == id }
     }
 
-    func scan() async {
+    /// Scan Now reads everything; `scheduled` scans (on launch and on the timer) may
+    /// leave out login & background items, so they don't ask for a password each time.
+    func scan(scheduled: Bool = false) async {
         guard !isScanning else { return }
         isScanning = true
         defer { isScanning = false }
+        let defaults = UserDefaults.standard
+        let lastFullScan = defaults.object(forKey: Self.lastFullScanKey) as? Date
+        let skip = Self.skipsLoginItems(scheduled: scheduled, lastFullScan: lastFullScan)
         do {
-            _ = try await CLI.run(["scan", "--json"], as: ScanResult.self)
+            _ = try await CLI.run(["scan", "--json"] + (skip ? ["--skip", "btm"] : []), as: ScanResult.self)
+            if !skip { defaults.set(Date.now, forKey: Self.lastFullScanKey) }
             history = try await CLI.run(["history", "--json"], as: History.self)
             lastError = nil
         } catch {

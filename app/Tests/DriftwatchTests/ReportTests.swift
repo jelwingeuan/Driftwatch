@@ -103,3 +103,14 @@ func decodesRealHistoryOutput() async throws {
     let history = try await CLI.run(["history", "--json"], as: History.self)
     #expect(history.itemsTotal >= 0)
 }
+
+@Test func scheduledScansSkipLoginItemsForADayAfterAFullScan() {
+    let now = Date(timeIntervalSince1970: 1_794_239_129)
+    let hour: TimeInterval = 60 * 60
+    // Scan Now always reads them.
+    #expect(!AppModel.skipsLoginItems(scheduled: false, lastFullScan: now, now: now))
+    // Never read yet, or read over a day ago: the scheduled scan reads them too.
+    #expect(!AppModel.skipsLoginItems(scheduled: true, lastFullScan: nil, now: now))
+    #expect(!AppModel.skipsLoginItems(scheduled: true, lastFullScan: now - 25 * hour, now: now))
+    #expect(AppModel.skipsLoginItems(scheduled: true, lastFullScan: now - 23 * hour, now: now))
+}
