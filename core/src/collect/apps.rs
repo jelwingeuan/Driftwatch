@@ -1,11 +1,15 @@
-use super::{error_item, list_dir};
+use super::{error_item, list_dir, output};
 use crate::Item;
 use plist::Value;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Duration;
 
 pub const CATEGORY: &str = "apps";
+
+/// How long one app's signature check may take (Xcode takes about 15s).
+const VERIFY_LIMIT: Duration = Duration::from_secs(60);
 
 /// Signature and version of every app in /Applications and ~/Applications.
 pub fn collect() -> Vec<Item> {
@@ -38,7 +42,8 @@ pub fn collect() -> Vec<Item> {
     items
 }
 
-fn app_item(app: &Path) -> Item {
+/// One app: its signature details, whether the signature checks out, and its version.
+pub fn app_item(app: &Path) -> Item {
     let key = app.to_string_lossy();
     let out = match Command::new("codesign")
         .args(["-dv", "--verbose=4"])
@@ -50,7 +55,9 @@ fn app_item(app: &Path) -> Item {
     };
     let text = String::from_utf8_lossy(&out.stderr);
     let mut fields = if out.status.success() {
-        parse_codesign(&text)
+        let mut fields = parse_codesign(&text);
+        fields.extend(verify(app));
+        fields
     } else if text.contains("not signed at all") {
         BTreeMap::from([("signed".to_string(), "no".to_string())])
     } else {
@@ -68,6 +75,38 @@ fn app_item(app: &Path) -> Item {
     let mut item = Item::new(CATEGORY, &key, fields);
     item.team_id = item.fields.get("team_id").cloned();
     item
+}
+
+/// `codesign --verify --strict` (no --deep): `signature_valid` "yes"; "no" with a
+/// `signature_problem` when the check fails; "unknown" with the reason when the
+/// check could not run or took too long, so that never reads as valid.
+fn verify(app: &Path) -> BTreeMap<String, String> {
+    let mut cmd = Command::new("codesign");
+    cmd.args(["--verify", "--strict"]).arg(app);
+    let (valid, problem) = match output(&mut cmd, VERIFY_LIMIT) {
+        Ok(o) if o.status.success() => ("yes", None),
+        // Exit 1 is codesign's "the signature doesn't check out"; anything else is
+        // a failure to check.
+        Ok(o) => {
+            let err = String::from_utf8_lossy(&o.stderr);
+            let line = err.lines().next().unwrap_or("").trim();
+            let prefix = format!("{}: ", app.display());
+            let reason = line.strip_prefix(&prefix).unwrap_or(line).to_string();
+            match o.status.code() {
+                Some(1) => ("no", Some(reason)),
+                _ => (
+                    "unknown",
+                    Some(format!("codesign failed ({}): {reason}", o.status)),
+                ),
+            }
+        }
+        Err(e) => ("unknown", Some(e)),
+    };
+    let mut fields = BTreeMap::from([("signature_valid".to_string(), valid.to_string())]);
+    if let Some(p) = problem {
+        fields.insert("signature_problem".into(), p);
+    }
+    fields
 }
 
 /// Parse `codesign -dv --verbose=4` (its stderr): identifier, team ID,

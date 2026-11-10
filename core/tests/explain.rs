@@ -122,13 +122,68 @@ fn team_id_in_catalog_is_known() {
     let mut i = item(
         "apps",
         "/Applications/Zoom.us.app",
-        &[("team_id", "BJ4HAAB9B3")],
+        &[("team_id", "BJ4HAAB9B3"), ("signature_valid", "yes")],
     );
     i.team_id = Some("BJ4HAAB9B3".into());
     let e = explain(&i);
     assert_eq!(e.title, "Zoom.us");
     assert_eq!(e.added_by.as_deref(), Some("Zoom"));
     assert_eq!(e.confidence, Some("known"));
+}
+
+/// The Zoom app, signed with Zoom's team ID, whose signature check said `valid`.
+fn zoom_app(valid: &str) -> Item {
+    let mut i = item(
+        "apps",
+        "/Applications/zoom.us.app",
+        &[
+            ("identifier", "us.zoom.xos"),
+            ("team_id", "BJ4HAAB9B3"),
+            ("signature_valid", valid),
+        ],
+    );
+    i.team_id = Some("BJ4HAAB9B3".into());
+    i
+}
+
+#[test]
+fn app_whose_signature_checks_out_keeps_its_known_developer() {
+    let e = explain(&zoom_app("yes"));
+    assert_eq!(
+        (e.added_by.as_deref(), e.confidence),
+        (Some("Zoom"), Some("known"))
+    );
+    assert_eq!((e.risk, e.risk_reason), ("low", None));
+}
+
+#[test]
+fn app_whose_signature_fails_is_high_and_never_known() {
+    let e = explain(&zoom_app("no"));
+    assert_eq!(e.risk, "high");
+    assert_eq!(
+        e.risk_reason.as_deref(),
+        Some("This app’s signature doesn’t check out, so it may have been changed after its developer made it.")
+    );
+    // The team ID is in the catalog, but only the identifier's guess is left.
+    assert_eq!(
+        (e.added_by.as_deref(), e.confidence),
+        (Some("Zoom"), Some("likely"))
+    );
+
+    let apple = explain(&item(
+        "apps",
+        "/Applications/Safari.app",
+        &[("authority", "Software Signing"), ("signature_valid", "no")],
+    ));
+    assert_eq!((apple.added_by, apple.confidence), (None, None));
+    assert_eq!(apple.risk, "high");
+}
+
+#[test]
+fn app_whose_signature_check_did_not_finish_is_not_known() {
+    let e = explain(&zoom_app("unknown"));
+    assert_eq!(e.confidence, Some("likely"));
+    assert_eq!(e.risk, "low");
 }
 
 #[test]

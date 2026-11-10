@@ -182,6 +182,8 @@ pub fn field_label(name: &str) -> &str {
         "cdhash" => "Code fingerprint",
         "signature" => "Signature",
         "signed" => "Signed",
+        "signature_valid" => "Signature checks out",
+        "signature_problem" => "Signature problem",
         "version" => "Version",
         "enabled" => "Turned on",
         "active" => "Running",
@@ -664,6 +666,10 @@ fn high_risk(item: &Item) -> Option<String> {
         "ssh" if is_authorized_key(item) => {
             Some("Anyone with the matching key can log in to your Mac.".to_string())
         }
+        "apps" if field(item, "signature_valid") == Some("no") => Some(
+            "This app’s signature doesn’t check out, so it may have been changed after its developer made it."
+                .to_string(),
+        ),
         _ => None,
     }
 }
@@ -702,16 +708,20 @@ fn medium_risk(item: &Item, signed_by: Option<&str>) -> Option<&'static str> {
 /// identifier or an /Applications path ("likely").
 fn attribute(item: &Item) -> Option<(String, &'static str)> {
     let cat = catalog();
-    let team = item.team_id.as_deref().or(field(item, "team_id"));
-    if let Some(vendor) = team.and_then(|t| cat.teams.get(t)) {
-        return Some((vendor.clone(), "known"));
-    }
-    if field(item, "authority") == Some("Software Signing") {
-        return Some(("Apple".to_string(), "known"));
-    }
-    // BTM reads the developer's name from the code signature.
-    if let Some(dev) = field(item, "developer") {
-        return Some((dev.to_string(), "known"));
+    // An app's signer counts only once its signature checks out: not when the
+    // check failed, timed out or could not run.
+    if item.category != "apps" || field(item, "signature_valid") == Some("yes") {
+        let team = item.team_id.as_deref().or(field(item, "team_id"));
+        if let Some(vendor) = team.and_then(|t| cat.teams.get(t)) {
+            return Some((vendor.clone(), "known"));
+        }
+        if field(item, "authority") == Some("Software Signing") {
+            return Some(("Apple".to_string(), "known"));
+        }
+        // BTM reads the developer's name from the code signature.
+        if let Some(dev) = field(item, "developer") {
+            return Some((dev.to_string(), "known"));
+        }
     }
     let key_id = match item.category.as_str() {
         "btm" => Some(btm_id(item)),
