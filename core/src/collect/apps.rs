@@ -82,13 +82,46 @@ pub fn app_item(app: &Path) -> Item {
     item
 }
 
+/// What `codesign --strict` says about extended attributes (Finder info, resource
+/// forks) on a bundle's files: metadata macOS ignores when it checks an app it runs.
+const DETRITUS: &str = "resource fork, Finder information, or similar detritus not allowed";
+
+/// Whether `codesign --verify --strict`'s stderr names detritus as its one problem.
+pub fn only_detritus(stderr: &str) -> bool {
+    let mut lines = stderr.lines().map(str::trim).filter(|l| !l.is_empty());
+    let first = lines.next().unwrap_or("");
+    first.ends_with(&format!(": {DETRITUS}")) && lines.next().is_none()
+}
+
 /// `codesign --verify --strict` (no --deep): `signature_valid` "yes"; "no" with a
 /// `signature_problem` when the check fails; "unknown" with the reason when the
-/// check could not run or took too long, so that never reads as valid.
+/// check could not run or took too long, so that never reads as valid. When the
+/// only complaint is detritus, "yes" with a `signature_note` if every other
+/// strict check passes.
 fn verify(app: &Path) -> BTreeMap<String, String> {
-    let mut cmd = Command::new("codesign");
-    cmd.args(["--verify", "--strict"]).arg(app);
-    let (valid, problem) = match output(&mut cmd, VERIFY_LIMIT) {
+    let check = |strict| {
+        output(
+            Command::new("codesign").args(["--verify", strict]).arg(app),
+            VERIFY_LIMIT,
+        )
+    };
+    let mut out = check("--strict");
+    let mut note = None;
+    let detritus = out.as_ref().is_ok_and(|o| {
+        o.status.code() == Some(1) && only_detritus(&String::from_utf8_lossy(&o.stderr))
+    });
+    if detritus {
+        // codesign stops at its first complaint, so detritus can hide a real
+        // problem: check again with every strict check but the detritus one
+        // (plain --verify would also drop the symlink check).
+        out = check("--strict=symlinks");
+        if out.as_ref().is_ok_and(|o| o.status.success()) {
+            note = Some(format!(
+                "Has extra file metadata macOS ignores (strict check: {DETRITUS})"
+            ));
+        }
+    }
+    let (valid, problem) = match out {
         Ok(o) if o.status.success() => ("yes", None),
         // Exit 1 is codesign's "the signature doesn't check out"; anything else is
         // a failure to check.
@@ -110,6 +143,9 @@ fn verify(app: &Path) -> BTreeMap<String, String> {
     let mut fields = BTreeMap::from([("signature_valid".to_string(), valid.to_string())]);
     if let Some(p) = problem {
         fields.insert("signature_problem".into(), p);
+    }
+    if let Some(n) = note {
+        fields.insert("signature_note".into(), n);
     }
     fields
 }

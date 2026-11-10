@@ -184,6 +184,7 @@ pub fn field_label(name: &str) -> &str {
         "signed" => "Signed",
         "signature_valid" => "Signature checks out",
         "signature_problem" => "Signature problem",
+        "signature_note" => "Signature note",
         "version" => "Version",
         "enabled" => "Turned on",
         "active" => "Running",
