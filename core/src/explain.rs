@@ -676,7 +676,9 @@ fn medium_risk(item: &Item, signed_by: Option<&str>) -> Option<&'static str> {
             }
             let daemon = field(item, "scope") == Some("global daemon")
                 || field(item, "type").is_some_and(|t| t.contains("daemon"));
-            if daemon && signed_by != Some("Apple") {
+            // A root helper from a signature-backed developer is expected; one from
+            // an unconfirmed maker is worth a look.
+            if daemon && signed_by.is_none() {
                 Some("Runs with full control of your Mac (as root).")
             } else if signed_by.is_none() && item.team_id.is_none() {
                 Some("Driftwatch can’t confirm who made this.")

