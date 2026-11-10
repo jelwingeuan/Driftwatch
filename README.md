@@ -26,12 +26,24 @@ Driftwatch only reads. It never deletes or changes anything on its own.
 
 ## Status
 
-Early, v0.1. The scanner, history and the menu bar app work. Still to come:
+Early, v0.1. The scanner, history, the menu bar app, and plain-language explanations with risk hints for each item work. You can download it as a DMG. Still to come:
 
-- Plain-language explanations and risk hints for each item
 - Turning off a startup item, with a way to bring it back
-- Alerts for new risky items, before/after an install, a trusted baseline, a weekly digest
-- A downloadable DMG
+- Alerts for new risky items, before/after an install, a trusted baseline, a weekly digest, export
+
+## Install
+
+Download `Driftwatch_aarch64.dmg` from [Releases](https://github.com/jelwingeuan/Driftwatch/releases). It is for Apple silicon Macs with macOS 14 or later. On an Intel Mac, build from source.
+
+Open the DMG and drag Driftwatch to Applications.
+
+The app is signed ad hoc and not notarized, so macOS blocks the first launch once. To open it, go to System Settings › Privacy & Security and click Open Anyway. Or run:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Driftwatch.app
+```
+
+To see privacy permissions, also give it [Full Disk Access](#full-disk-access).
 
 ## Build from source
 
@@ -70,4 +82,4 @@ History is stored in `~/Library/Application Support/Driftwatch/driftwatch.db`.
 
 ## License
 
-Not licensed yet.
+MIT, see [LICENSE](LICENSE).
