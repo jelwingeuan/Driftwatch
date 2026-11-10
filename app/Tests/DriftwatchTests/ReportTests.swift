@@ -114,3 +114,19 @@ func decodesRealHistoryOutput() async throws {
     #expect(!AppModel.skipsLoginItems(scheduled: true, lastFullScan: now - 25 * hour, now: now))
     #expect(AppModel.skipsLoginItems(scheduled: true, lastFullScan: now - 23 * hour, now: now))
 }
+
+@Test func unreadableItemsShowTheirSummaryAndNeverTheRedRemovedSymbol() throws {
+    func change(_ kind: String) throws -> Change {
+        let json = #"{"category":"btm","fields":{"error":"sfltool failed (needs admin rights)"},"key":"sfltool dumpbtm","kind":"\#(kind)","title":"Couldn’t read login items","summary":"This part needs your admin password."}"#
+        return try decodeCLIOutput(Change.self, from: Data(json.utf8))
+    }
+    let failed = try change("added")
+    #expect(failed.subtitle == "This part needs your admin password.")
+    #expect(failed.status.symbol == "exclamationmark.triangle")
+    let resolved = try change("removed")
+    #expect(resolved.subtitle == "This problem has gone away.")
+    #expect(resolved.status.symbol == "checkmark.circle")
+    let removed = try decodeCLIOutput(
+        Change.self, from: Data(#"{"category":"cron","fields":{},"key":"job","kind":"removed","title":"job"}"#.utf8))
+    #expect(removed.status.symbol == "minus.circle")
+}

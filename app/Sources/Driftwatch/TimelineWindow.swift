@@ -168,20 +168,15 @@ struct TimelineWindow: View {
 }
 
 /// The kind of change as a symbol whose shape (not only its color) tells it apart.
-/// Items that could not be read get a warning symbol instead.
+/// Items that could not be read get a warning symbol instead (see `Change.status`).
 struct KindIcon: View {
     let change: Change
 
     var body: some View {
-        if change.error != nil, change.kind != .removed {
-            Image(systemName: "exclamationmark.triangle")
-                .foregroundStyle(.yellow)
-                .accessibilityLabel("\(change.kind.label), couldn’t be read")
-        } else {
-            Image(systemName: change.kind.symbol)
-                .foregroundStyle(change.kind.tint)
-                .accessibilityLabel(change.kind.label)
-        }
+        let status = change.status
+        Image(systemName: status.symbol)
+            .foregroundStyle(status.tint)
+            .accessibilityLabel(status.label)
     }
 }
 
@@ -200,7 +195,7 @@ private struct ChangeRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if let line = change.error ?? change.summary {
+                if let line = change.subtitle {
                     Text(line)
                         .font(.caption)
                         .foregroundStyle(.secondary)

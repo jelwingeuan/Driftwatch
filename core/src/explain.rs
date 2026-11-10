@@ -244,7 +244,7 @@ fn is_authorized_key(item: &Item) -> bool {
 fn title(item: &Item) -> String {
     let get = |name| field(item, name);
     let best = if get("error").is_some() {
-        None
+        Some(format!("Couldn’t read {}", area(&item.category)))
     } else {
         match item.category.as_str() {
             "launchd" => get("Label").map(str::to_string),
@@ -306,10 +306,47 @@ fn with_command(sentence: &str, cmd: Option<&str>) -> String {
     }
 }
 
+/// What a category covers, worded to follow “Couldn’t read”.
+fn area(category: &str) -> &str {
+    match category {
+        "launchd" => "startup items",
+        "btm" => "login items",
+        "cron" => "scheduled tasks",
+        "shell" => "shell startup files",
+        "sysext" => "system extensions",
+        "tcc" => "privacy permissions",
+        "certs" => "certificates",
+        "network" => "network settings",
+        "ssh" => "SSH files",
+        "apps" => "apps",
+        other => other,
+    }
+}
+
+/// What to do about an unreadable item, else the error's short reason as a
+/// sentence: "Permission denied (os error 13)" → "Permission denied."
+fn error_summary(category: &str, error: &str) -> String {
+    match category {
+        "btm" => "This part needs your admin password. Choose Scan Now and approve the prompt to check it."
+            .to_string(),
+        "tcc" => "Give Driftwatch Full Disk Access in System Settings to check this.".to_string(),
+        _ => {
+            let reason = error
+                .split(" (")
+                .map(str::trim)
+                .find(|r| !r.is_empty())
+                .unwrap_or(error);
+            let mut chars = reason.trim_end_matches('.').chars();
+            let first = chars.next().map(|c| c.to_uppercase().to_string());
+            format!("{}{}.", first.unwrap_or_default(), chars.as_str())
+        }
+    }
+}
+
 fn summary(item: &Item) -> String {
     let get = |name| field(item, name);
-    if get("error").is_some() {
-        return "Driftwatch couldn’t read this item.".to_string();
+    if let Some(error) = get("error") {
+        return error_summary(&item.category, error);
     }
     match item.category.as_str() {
         "launchd" => {

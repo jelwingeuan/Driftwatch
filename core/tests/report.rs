@@ -43,9 +43,10 @@ fn item_json_explains_the_item() {
     assert_eq!(v["field_labels"]["Label"], "Name");
     assert_eq!(v["field_labels"]["RunAtLoad"], "Starts at login");
     assert_eq!(v["field_labels"]["odd"], "odd");
-    // Unreadable items fall back to the file name.
     let broken = item_json(&item("launchd", plist, &[("error", "bad")]));
-    assert_eq!(broken["title"], "com.example.agent.plist");
+    assert_eq!(broken["title"], "Couldn’t read startup items");
+    assert_eq!(broken["summary"], "Bad.");
+    assert_eq!(broken["fields"]["error"], "bad");
     assert_eq!(broken["risk"], "low");
 }
 

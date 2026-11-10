@@ -26,8 +26,8 @@ struct InspectorView: View {
                     Text(change.title)
                         .font(.title3.weight(.semibold))
                         .textSelection(.enabled)
-                    if let summary = change.summary {
-                        Text(summary).textSelection(.enabled)
+                    if let subtitle = change.subtitle {
+                        Text(subtitle).textSelection(.enabled)
                     }
                     RiskBadge(change: change)
                     if change.risk == "medium" || change.risk == "high", let reason = change.riskReason {
@@ -36,15 +36,12 @@ struct InspectorView: View {
                     if let addedBy = change.addedByText {
                         Text(addedBy).foregroundStyle(.secondary)
                     }
-                    Label(change.kind.label, systemImage: change.kind.symbol)
-                        .foregroundStyle(change.kind.tint)
+                    Label(change.status.label, systemImage: change.status.symbol)
+                        .foregroundStyle(change.status.tint)
                     Label(Category.named(change.category).name, systemImage: Category.named(change.category).symbol)
                         .foregroundStyle(.secondary)
                     Text("Found \(row.takenAt.formatted(date: .abbreviated, time: .shortened))")
                         .foregroundStyle(.secondary)
-                }
-                if let error = change.error {
-                    Label(error, systemImage: "exclamationmark.triangle")
                 }
                 if let url = fileURL(change) {
                     Button("Show in Finder") {

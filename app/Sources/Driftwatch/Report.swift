@@ -103,6 +103,22 @@ struct Change: Decodable, Hashable {
     /// Why the item could not be read, if it could not.
     var error: String? { fields["error"] }
 
+    /// The line under the title: the plain summary (the raw error stays in the fields),
+    /// or for an unreadable item that went away, that the problem is gone.
+    var subtitle: String? {
+        error != nil && kind == .removed ? "This problem has gone away." : summary ?? error
+    }
+
+    /// How the change shows: its kind, or for an unreadable item a warning, and once
+    /// that item goes away a check rather than the red “removed”.
+    var status: (label: String, symbol: String, tint: Color) {
+        switch (error, kind) {
+        case (nil, _): (kind.label, kind.symbol, kind.tint)
+        case (_, .removed): ("Resolved", "checkmark.circle", .green)
+        default: ("Couldn’t be read", "exclamationmark.triangle", .yellow)
+        }
+    }
+
     /// The plain label for a raw field name.
     func label(_ field: String) -> String { fieldLabels?[field] ?? field }
 

@@ -352,6 +352,54 @@ fn program_in_a_temp_shared_or_hidden_folder_is_at_least_medium() {
 }
 
 #[test]
+fn unreadable_items_say_what_could_not_be_read_and_what_to_do() {
+    let btm = explain(&item(
+        "btm",
+        "sfltool dumpbtm",
+        &[("error", "no records returned (needs admin rights)")],
+    ));
+    assert_eq!(btm.title, "Couldn’t read login items");
+    assert_eq!(
+        btm.summary,
+        "This part needs your admin password. Choose Scan Now and approve the prompt to check it."
+    );
+    assert_eq!((btm.risk, btm.risk_reason), ("low", None));
+
+    let tcc = explain(&item(
+        "tcc",
+        "/Library/Application Support/com.apple.TCC/TCC.db",
+        &[(
+            "error",
+            "needs Full Disk Access (unable to open database file)",
+        )],
+    ));
+    assert_eq!(tcc.title, "Couldn’t read privacy permissions");
+    assert_eq!(
+        tcc.summary,
+        "Give Driftwatch Full Disk Access in System Settings to check this."
+    );
+
+    for (category, error, title, summary) in [
+        (
+            "launchd",
+            "Permission denied (os error 13)",
+            "Couldn’t read startup items",
+            "Permission denied.",
+        ),
+        (
+            "certs",
+            "security failed (exit status: 1): x",
+            "Couldn’t read certificates",
+            "Security failed.",
+        ),
+        ("new", "(odd) error.", "Couldn’t read new", "(odd) error."),
+    ] {
+        let e = explain(&item(category, "/x/y.plist", &[("error", error)]));
+        assert_eq!((e.title.as_str(), e.summary.as_str()), (title, summary));
+    }
+}
+
+#[test]
 fn field_labels_fall_back_to_the_raw_name() {
     assert_eq!(field_label("ProgramArguments"), "What it runs");
     assert_eq!(field_label("file_sha256"), "File contents");
