@@ -4,18 +4,32 @@ on:
   push:
     tags: ["v*"]
 
+permissions: {}
+
 jobs:
   dmg:
     runs-on: macos-latest
     permissions:
-      contents: write
+      contents: write # create the draft release and upload its files
+      id-token: write # sign the build attestation
+      attestations: write # store the build attestation
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The runner ships rustup; no third-party toolchain action needed.
+      - run: rustup toolchain install stable --profile minimal && rustup default stable
       # Fail here rather than let build-app.sh fall back to a debug build.
       - run: cargo build --release
       - run: scripts/build-dmg.sh
-      - uses: softprops/action-gh-release@v2
+      # Bare file name, so `shasum -a 256 -c` works in the download folder.
+      - run: cd build && shasum -a 256 Driftwatch_aarch64.dmg > Driftwatch_aarch64.dmg.sha256
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: build/Driftwatch_aarch64.dmg
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           draft: true
-          files: build/Driftwatch_aarch64.dmg
+          files: |
+            build/Driftwatch_aarch64.dmg
+            build/Driftwatch_aarch64.dmg.sha256
