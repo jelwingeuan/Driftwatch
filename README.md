@@ -11,13 +11,13 @@ Apps quietly add things to your Mac: helpers that start at login, permissions to
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/timeline-dark.png">
-    <img src="docs/screenshots/timeline-light.png" width="700" alt="The Driftwatch window. A sidebar lists the areas it watches. The timeline shows the latest scan first: a new startup item, com.example.updater, marked High risk because it downloads code from the internet and runs it; Zoom getting camera access; a new certificate; a Google Chrome update. An older scan below lists two new startup items and a changed SSH settings file.">
+    <img src="docs/screenshots/timeline-light.png" width="700" alt="The Driftwatch window. A sidebar lists the areas it watches. The timeline shows the latest scan first: a new startup item, com.example.updater, marked High risk because it downloads code from the internet and runs it; Chrome getting camera access; a new certificate; a Google Chrome update. An older scan below lists two new startup items and a changed SSH settings file.">
   </picture>
   <br>
   <sub>Example data, not a real Mac.</sub>
 </p>
 
-It runs in the menu bar and in a timeline window. Everything stays on your Mac: no account, no network calls.
+It's for anyone who installs apps and wants to know what they left behind. It runs in the menu bar and in a timeline window, and scans when it starts and every 30 minutes. Everything stays on your Mac: no account, no network calls, and the code is all here to check.
 
 ## What it tells you
 
@@ -31,7 +31,11 @@ Each change gets a short title, one plain sentence about what it is, a risk hint
 >
 > No "Added by" line: Driftwatch can't tell who made it.
 
+In the timeline, a green ⊕ means added, an orange pencil means changed, and ⊖ means removed. **High risk** (red) marks patterns malware uses, such as downloading and running code. **Worth a look** (orange) marks things Driftwatch can't vouch for, such as a helper from an unknown developer. No label means nothing stood out.
+
 The risk is a hint, not a verdict. "Added by" comes from a code signature when there is one; when Driftwatch only guesses from a name or folder, it says "likely". Select a change to see all its details and, for a changed item, what changed.
+
+If something is flagged and you don't recognise it, search its name and where it runs from, or ask someone you trust before removing anything.
 
 ## What it watches
 
@@ -45,7 +49,7 @@ The risk is a hint, not a verdict. "Added by" comes from a code signature when t
 | SSH | `authorized_keys`, SSH config, public keys, and which private keys exist (their contents are never read) |
 | Apps | Code signatures of apps in `/Applications` and `~/Applications` |
 
-Driftwatch only reads. It never deletes or changes anything on its own.
+Driftwatch only reads. It never deletes or changes anything. (A planned feature will let you turn off a startup item yourself, with a way to bring it back.)
 
 ## Status
 
@@ -56,17 +60,19 @@ Early, v0.1. The scanner, history, the menu bar app, and plain-language explanat
 
 ## Install
 
-Download `Driftwatch_aarch64.dmg` from [Releases](https://github.com/jelwingeuan/Driftwatch/releases). It is for Apple silicon Macs with macOS 14 or later. On an Intel Mac, build from source.
+1. Check your Mac: Apple menu › About This Mac. If "Chip" says Apple M1 or later and macOS is 14 or later, it will run. (Intel Macs can only build from source for now.)
+2. Download [Driftwatch_aarch64.dmg](https://github.com/jelwingeuan/Driftwatch/releases/latest/download/Driftwatch_aarch64.dmg), or pick it from [Releases](https://github.com/jelwingeuan/Driftwatch/releases).
+3. Open the DMG and drag Driftwatch to Applications.
+4. Open Driftwatch. macOS will stop it once, because Apple hasn't reviewed it (that needs a paid developer account; the code is open here instead). Go to System Settings › Privacy & Security, scroll down, and click **Open Anyway** next to Driftwatch.
 
-Open the DMG and drag Driftwatch to Applications.
+   If you're comfortable with Terminal, this does the same: `xattr -dr com.apple.quarantine /Applications/Driftwatch.app`
 
-The app is signed ad hoc and not notarized, so macOS blocks the first launch once. To open it, go to System Settings › Privacy & Security and click Open Anyway. Or run:
+What it will ask for:
 
-```bash
-xattr -dr com.apple.quarantine /Applications/Driftwatch.app
-```
+- **Your Mac password**, when it reads login and background items. macOS only shares those with an administrator. This happens on the first scan, when you click Scan Now, and at most once a day after that.
+- **Full Disk Access**, optional, to see which apps can use your camera, microphone and files. See [Full Disk Access](#full-disk-access).
 
-To see privacy permissions, also give it [Full Disk Access](#full-disk-access).
+To uninstall, quit it from the menu bar, drag it from Applications to the Trash, and delete the folder `~/Library/Application Support/Driftwatch` to remove its history.
 
 ## Build from source
 
@@ -91,7 +97,7 @@ It runs a separate copy of the app with a stub scanner that only prints the exam
 
 ### Full Disk Access
 
-Privacy permissions live in a protected database. To see them, add Driftwatch in System Settings › Privacy & Security › Full Disk Access. Without it, everything else still works and that area shows as unreadable.
+Privacy permissions live in a protected database. To see them, add Driftwatch in System Settings › Privacy & Security › Full Disk Access. Without it, everything else still works and that area shows as unreadable. Driftwatch only uses this access to read that one database, not your documents.
 
 ## Command line
 
