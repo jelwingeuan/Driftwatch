@@ -2,6 +2,7 @@ use driftwatch::collect::{apps, btm, certs, cron, launchd, network, shell, ssh, 
 use driftwatch::diff::{diff, ChangeKind};
 use driftwatch::report;
 use driftwatch::store::{self, Store};
+use driftwatch::Collector;
 use std::error::Error;
 
 const USAGE: &str = "usage: driftwatch scan [--json]\n       driftwatch history --json [--limit N]";
@@ -47,20 +48,23 @@ fn history(limit: usize) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+const COLLECTORS: [Collector; 10] = [
+    (launchd::CATEGORY, launchd::collect),
+    (btm::CATEGORY, btm::collect),
+    (cron::CATEGORY, cron::collect),
+    (shell::CATEGORY, shell::collect),
+    (sysext::CATEGORY, sysext::collect),
+    (tcc::CATEGORY, tcc::collect),
+    (certs::CATEGORY, certs::collect),
+    (network::CATEGORY, network::collect),
+    (ssh::CATEGORY, ssh::collect),
+    (apps::CATEGORY, apps::collect),
+];
+
 fn scan(json: bool) -> Result<(), Box<dyn Error>> {
-    let mut items = launchd::collect();
-    items.extend(btm::collect());
-    items.extend(cron::collect());
-    items.extend(shell::collect());
-    items.extend(sysext::collect());
-    items.extend(tcc::collect());
-    items.extend(certs::collect());
-    items.extend(network::collect());
-    items.extend(ssh::collect());
-    items.extend(apps::collect());
-    driftwatch::uniquify_keys(&mut items);
     let mut store = open_store()?;
     let previous = store.latest_items()?;
+    let items = driftwatch::collect_all(&COLLECTORS, previous.as_deref().unwrap_or_default());
     let snapshot = store.save_snapshot(&items)?;
     let changes = previous
         .as_deref()

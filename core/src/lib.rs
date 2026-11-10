@@ -30,6 +30,38 @@ impl Item {
     }
 }
 
+/// A collector: the category it reads and the function that reads it.
+pub type Collector = (&'static str, fn() -> Vec<Item>);
+
+/// Whether the item records why something could not be read.
+pub fn is_error(item: &Item) -> bool {
+    item.fields.contains_key("error")
+}
+
+/// Run each collector for a new snapshot, given the previous snapshot's items.
+/// A category whose read failed outright (error items only, nothing real) keeps
+/// its previous real items, unchanged, next to the errors: the failure shows as
+/// the error appearing, not as every item removed and then added back once the
+/// read works again. A fresh error replaces the kept item with the same key.
+pub fn collect_all(collectors: &[Collector], previous: &[Item]) -> Vec<Item> {
+    let mut items = Vec::new();
+    for &(category, collect) in collectors {
+        let mut fresh = collect();
+        uniquify_keys(&mut fresh);
+        if !fresh.is_empty() && fresh.iter().all(is_error) {
+            items.extend(
+                previous
+                    .iter()
+                    .filter(|old| old.category == category && !is_error(old))
+                    .filter(|old| fresh.iter().all(|e| e.key != old.key))
+                    .cloned(),
+            );
+        }
+        items.extend(fresh);
+    }
+    items
+}
+
 /// Make (category, key) unique so diff and store never collapse items: the 2nd,
 /// 3rd… repeat of a key (in input order) gets " #2", " #3"… appended.
 pub fn uniquify_keys(items: &mut [Item]) {
