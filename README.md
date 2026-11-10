@@ -62,6 +62,9 @@ Early, v0.1. The scanner, history, the menu bar app, and plain-language explanat
 
 1. Check your Mac: Apple menu › About This Mac. If "Chip" says Apple M1 or later and macOS is 14 or later, it will run. (Intel Macs can only build from source for now.)
 2. Download [Driftwatch_aarch64.dmg](https://github.com/jelwingeuan/Driftwatch/releases/latest/download/Driftwatch_aarch64.dmg), or pick it from [Releases](https://github.com/jelwingeuan/Driftwatch/releases).
+
+   To check the download, save [Driftwatch_aarch64.dmg.sha256](https://github.com/jelwingeuan/Driftwatch/releases/latest/download/Driftwatch_aarch64.dmg.sha256) in the same folder and run `shasum -a 256 -c Driftwatch_aarch64.dmg.sha256` there; it should say `OK`. With the GitHub CLI you can also check it was built from this repository: `gh attestation verify Driftwatch_aarch64.dmg --repo jelwingeuan/Driftwatch`
+
 3. Open the DMG and drag Driftwatch to Applications.
 4. Open Driftwatch. macOS will stop it once, because Apple hasn't reviewed it (that needs a paid developer account; the code is open here instead). Go to System Settings › Privacy & Security, scroll down, and click **Open Anyway** next to Driftwatch.
 
@@ -117,6 +120,10 @@ History is stored in `~/Library/Application Support/Driftwatch/driftwatch.db`.
 - `core/`: Rust. One collector per area, a diff of each scan against the last, and a SQLite store.
 - `app/`: SwiftUI menu bar app and window. It runs the bundled scanner and reads its JSON.
 - `docs/`: the [prior-art check](docs/prior-art.md) and the [v1 plan](docs/plan.md).
+
+## Security
+
+To report a security problem, see [SECURITY.md](SECURITY.md).
 
 ## License
 
