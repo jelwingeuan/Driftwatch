@@ -1,18 +1,37 @@
 use super::{error_item, list_dir, output, read_file, TOOL_LIMIT};
 use crate::Item;
 use plist::Value;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const CATEGORY: &str = "apps";
 
 /// How long one app's signature check may take (Xcode takes about 15s).
 const VERIFY_LIMIT: Duration = Duration::from_secs(60);
 
+/// How long an unchanged app's last signature check may be reused (in seconds):
+/// every app is fully checked again at least once a day.
+pub const REUSE_LIMIT: u64 = 24 * 60 * 60;
+
+/// The fields `verify` sets: the verdict a reused check carries over.
+const VERDICT: [&str; 3] = ["signature_valid", "signature_problem", "signature_note"];
+
+/// When an app's signature was last fully checked, and its `check_key` just before.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignatureCheck {
+    /// Seconds since 1970 (UTC).
+    pub checked_at: u64,
+    pub key: String,
+}
+
 /// Signature and version of every app in /Applications and ~/Applications.
-pub fn collect() -> Vec<Item> {
+/// `previous` (the last snapshot) lets unchanged apps skip the slow check.
+pub fn collect(previous: &[Item]) -> Vec<Item> {
     let mut dirs = vec![PathBuf::from("/Applications")];
     if let Ok(home) = std::env::var("HOME") {
         dirs.push(Path::new(&home).join("Applications"));
@@ -27,13 +46,25 @@ pub fn collect() -> Vec<Item> {
                 .filter(|p| p.extension().is_some_and(|x| x == "app")),
         );
     }
+    let before: BTreeMap<&str, &Item> = previous
+        .iter()
+        .filter(|i| i.category == CATEGORY)
+        .map(|i| (i.key.as_str(), i))
+        .collect();
+    let before = &before;
     // codesign is slow per app, so run the chunks in parallel.
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
     let chunk = apps.len().div_ceil(threads).max(1);
     std::thread::scope(|s| {
         let handles: Vec<_> = apps
             .chunks(chunk)
-            .map(|c| s.spawn(move || c.iter().map(|p| app_item(p)).collect::<Vec<_>>()))
+            .map(|c| {
+                s.spawn(move || {
+                    c.iter()
+                        .map(|p| app_item(p, before.get(&*p.to_string_lossy()).copied()))
+                        .collect::<Vec<_>>()
+                })
+            })
             .collect();
         for h in handles {
             items.extend(h.join().expect("app scan thread panicked"));
@@ -42,8 +73,10 @@ pub fn collect() -> Vec<Item> {
     items
 }
 
-/// One app: its signature details, whether the signature checks out, and its version.
-pub fn app_item(app: &Path) -> Item {
+/// One app: its signature details, whether the signature checks out, and its
+/// version. The verdict of `previous` (this app in the last snapshot) is reused
+/// when `reusable`, else the signature is checked again.
+pub fn app_item(app: &Path, previous: Option<&Item>) -> Item {
     let key = app.to_string_lossy();
     let out = match output(
         Command::new("codesign")
@@ -55,9 +88,32 @@ pub fn app_item(app: &Path) -> Item {
         Err(e) => return error_item(CATEGORY, &key, &e),
     };
     let text = String::from_utf8_lossy(&out.stderr);
+    let mut check = None;
     let mut fields = if out.status.success() {
         let mut fields = parse_codesign(&text);
-        fields.extend(verify(app));
+        // Read before verifying, so a change made during the check gives a new key.
+        let now = now();
+        let check_key = check_key(app, &text, &fields);
+        match previous.filter(|p| reusable(p, check_key.as_deref(), now)) {
+            Some(p) => {
+                for name in VERDICT {
+                    if let Some(v) = p.fields.get(name) {
+                        fields.insert(name.to_string(), v.clone());
+                    }
+                }
+                check = p.signature_check.clone();
+            }
+            None => {
+                let verdict = verify(app);
+                if matches!(verdict["signature_valid"].as_str(), "yes" | "no") {
+                    check = check_key.map(|key| SignatureCheck {
+                        checked_at: now,
+                        key,
+                    });
+                }
+                fields.extend(verdict);
+            }
+        }
         fields
     } else if text.contains("not signed at all") {
         BTreeMap::from([("signed".to_string(), "no".to_string())])
@@ -79,7 +135,65 @@ pub fn app_item(app: &Path) -> Item {
     }
     let mut item = Item::new(CATEGORY, &key, fields);
     item.team_id = item.fields.get("team_id").cloned();
+    item.signature_check = check;
     item
+}
+
+fn now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+}
+
+/// Whether `previous`'s verdict still holds: a "yes" or "no" (never "unknown")
+/// from a check less than `REUSE_LIMIT` old, made when the app had this `key`.
+fn reusable(previous: &Item, key: Option<&str>, now: u64) -> bool {
+    let Some(check) = &previous.signature_check else {
+        return false;
+    };
+    let valid = previous.fields.get("signature_valid").map(String::as_str);
+    matches!(valid, Some("yes" | "no"))
+        && key == Some(check.key.as_str())
+        && now
+            .checked_sub(check.checked_at)
+            .is_some_and(|age| age < REUSE_LIMIT)
+}
+
+/// What must stay the same for a past signature check to still hold, hashed: the
+/// signature details from `codesign -dv` and the device, inode, size, modify and
+/// change times of the main executable, Info.plist and the resource seal
+/// (`touch` can set a modify time back, not a change time). None when codesign
+/// names no executable or one of those files can't be read: then always check.
+// shortcut: an edit to a nested file (a framework, helper or resource) that
+// leaves these three files untouched is only caught at the next full check,
+// within REUSE_LIMIT; hash every sealed file if that gap ever matters.
+fn check_key(app: &Path, codesign: &str, signature: &BTreeMap<String, String>) -> Option<String> {
+    let exe = codesign
+        .lines()
+        .find_map(|l| l.strip_prefix("Executable="))?;
+    let mut key: String = signature
+        .iter()
+        .map(|(k, v)| format!("{k}={v}\n"))
+        .collect();
+    for file in [
+        PathBuf::from(exe),
+        app.join("Contents/Info.plist"),
+        app.join("Contents/_CodeSignature/CodeResources"),
+    ] {
+        let m = std::fs::metadata(&file).ok()?;
+        key += &format!(
+            "{} {} {} {} {}.{} {}.{}\n",
+            file.display(),
+            m.dev(),
+            m.ino(),
+            m.size(),
+            m.mtime(),
+            m.mtime_nsec(),
+            m.ctime(),
+            m.ctime_nsec()
+        );
+    }
+    Some(crate::hex(&Sha256::digest(key)))
 }
 
 /// What `codesign --strict` says about extended attributes (Finder info, resource

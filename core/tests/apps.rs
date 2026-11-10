@@ -1,4 +1,5 @@
-use driftwatch::collect::apps::{app_item, only_detritus, parse_codesign};
+use driftwatch::collect::apps::{app_item, only_detritus, parse_codesign, REUSE_LIMIT};
+use driftwatch::diff::diff;
 use driftwatch::explain::explain;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -63,10 +64,10 @@ fn add_finder_info(app: &Path) {
 #[test]
 fn app_whose_signature_breaks_after_signing_fails_the_check() {
     let (dir, app) = signed_app("broken");
-    let ok = app_item(&app);
+    let ok = app_item(&app, None);
     let broken = {
         append_to_executable(&app);
-        app_item(&app)
+        app_item(&app, None)
     };
     std::fs::remove_dir_all(&dir).unwrap();
 
@@ -84,7 +85,7 @@ fn app_whose_signature_breaks_after_signing_fails_the_check() {
 fn detritus_alone_is_only_a_note_but_never_hides_a_real_problem() {
     let (dir, app) = signed_app("detritus");
     add_finder_info(&app);
-    let detritus = app_item(&app);
+    let detritus = app_item(&app, None);
     // Strict reports only the detritus here; the broken executable is behind it.
     append_to_executable(&app);
     let strict = Command::new("codesign")
@@ -92,7 +93,7 @@ fn detritus_alone_is_only_a_note_but_never_hides_a_real_problem() {
         .arg(&app)
         .output()
         .unwrap();
-    let hidden = app_item(&app);
+    let hidden = app_item(&app, None);
     std::fs::remove_dir_all(&dir).unwrap();
 
     assert_eq!(detritus.fields["signature_valid"], "yes");
@@ -128,4 +129,53 @@ fn only_detritus_means_detritus_is_the_one_complaint() {
         "/Applications/A.app: invalid destination for symbolic link in bundle\n"
     ));
     assert!(!only_detritus(""));
+}
+
+#[test]
+fn an_unchanged_app_reuses_its_last_check_for_up_to_a_day() {
+    let (dir, app) = signed_app("reuse");
+    let first = app_item(&app, None);
+    let again = app_item(&app, Some(&first));
+    let mut day_old = first.clone();
+    day_old.signature_check.as_mut().unwrap().checked_at -= REUSE_LIMIT;
+    let rechecked = app_item(&app, Some(&day_old));
+
+    // A file added to the bundle breaks the seal but none of the files the reuse
+    // key covers, so only a fresh check notices it.
+    std::fs::create_dir_all(app.join("Contents/Resources")).unwrap();
+    std::fs::write(app.join("Contents/Resources/extra.txt"), "x").unwrap();
+    let reused = app_item(&app, Some(&first));
+    let expired = app_item(&app, Some(&day_old));
+    let mut unknown = first.clone();
+    unknown
+        .fields
+        .insert("signature_valid".into(), "unknown".into());
+    let not_reused = app_item(&app, Some(&unknown));
+
+    // Same modify time, new change time: the key changes, so the app is checked.
+    let plist = std::fs::File::options()
+        .write(true)
+        .open(app.join("Contents/Info.plist"))
+        .unwrap();
+    plist
+        .set_modified(plist.metadata().unwrap().modified().unwrap())
+        .unwrap();
+    let touched = app_item(&app, Some(&first));
+    std::fs::remove_dir_all(&dir).unwrap();
+
+    assert_eq!(first.fields["signature_valid"], "yes");
+    assert!(first.signature_check.is_some());
+    // Reused as it was: same verdict, same check time, no change in the diff.
+    assert_eq!(again, first);
+    assert!(diff(std::slice::from_ref(&first), &[again]).is_empty());
+    // A day on, checked again: a new check time, still no change in the diff.
+    let at = |i: &driftwatch::Item| i.signature_check.as_ref().unwrap().checked_at;
+    assert!(at(&rechecked) >= at(&first));
+    assert!(diff(&[day_old], &[rechecked]).is_empty());
+
+    assert_eq!(reused.fields["signature_valid"], "yes");
+    for checked in [&expired, &not_reused, &touched] {
+        assert_eq!(checked.fields["signature_valid"], "no", "{checked:?}");
+        assert!(at(checked) >= at(&first));
+    }
 }

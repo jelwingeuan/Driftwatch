@@ -64,15 +64,15 @@ fn history(limit: usize) -> Result<(), Box<dyn Error>> {
 }
 
 const COLLECTORS: [Collector; 10] = [
-    (launchd::CATEGORY, launchd::collect),
-    (btm::CATEGORY, btm::collect),
-    (cron::CATEGORY, cron::collect),
-    (shell::CATEGORY, shell::collect),
-    (sysext::CATEGORY, sysext::collect),
-    (tcc::CATEGORY, tcc::collect),
-    (certs::CATEGORY, certs::collect),
-    (network::CATEGORY, network::collect),
-    (ssh::CATEGORY, ssh::collect),
+    (launchd::CATEGORY, |_| launchd::collect()),
+    (btm::CATEGORY, |_| btm::collect()),
+    (cron::CATEGORY, |_| cron::collect()),
+    (shell::CATEGORY, |_| shell::collect()),
+    (sysext::CATEGORY, |_| sysext::collect()),
+    (tcc::CATEGORY, |_| tcc::collect()),
+    (certs::CATEGORY, |_| certs::collect()),
+    (network::CATEGORY, |_| network::collect()),
+    (ssh::CATEGORY, |_| ssh::collect()),
     (apps::CATEGORY, apps::collect),
 ];
 

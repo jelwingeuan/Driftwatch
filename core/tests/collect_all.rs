@@ -27,11 +27,11 @@ fn plist(name: &str) -> Item {
     item("launchd", &format!("/{name}.plist"), &[("Label", name)])
 }
 
-fn launchd_ok() -> Vec<Item> {
+fn launchd_ok(_: &[Item]) -> Vec<Item> {
     vec![plist("a"), plist("b")]
 }
 
-fn launchd_a_unreadable() -> Vec<Item> {
+fn launchd_a_unreadable(_: &[Item]) -> Vec<Item> {
     vec![item(
         "launchd",
         "/a.plist",
@@ -39,27 +39,27 @@ fn launchd_a_unreadable() -> Vec<Item> {
     )]
 }
 
-fn btm_ok() -> Vec<Item> {
+fn btm_ok(_: &[Item]) -> Vec<Item> {
     ["a", "b", "c"].map(login_item).to_vec()
 }
 
-fn btm_one_more() -> Vec<Item> {
+fn btm_one_more(_: &[Item]) -> Vec<Item> {
     ["a", "b", "c", "d"].map(login_item).to_vec()
 }
 
-fn btm_failed() -> Vec<Item> {
+fn btm_failed(_: &[Item]) -> Vec<Item> {
     vec![btm_error()]
 }
 
-fn btm_partly_read() -> Vec<Item> {
+fn btm_partly_read(_: &[Item]) -> Vec<Item> {
     vec![login_item("a"), btm_error()]
 }
 
-fn nothing() -> Vec<Item> {
+fn nothing(_: &[Item]) -> Vec<Item> {
     Vec::new()
 }
 
-fn not_read() -> Vec<Item> {
+fn not_read(_: &[Item]) -> Vec<Item> {
     panic!("a skipped category is read")
 }
 
@@ -162,4 +162,15 @@ fn a_skipped_category_with_no_last_items_is_read() {
     let no_btm = collect_all(&[("launchd", launchd_ok)], &[], &[]);
     let first = collect_all(&[("btm", btm_ok)], &no_btm, &["btm"]);
     assert_eq!(first.len(), 3);
+}
+
+fn previous_copy(previous: &[Item]) -> Vec<Item> {
+    previous.to_vec()
+}
+
+#[test]
+fn a_collector_is_handed_the_previous_items() {
+    let baseline = collect_all(&[("launchd", launchd_ok)], &[], &[]);
+    let next = collect_all(&[("launchd", previous_copy)], &baseline, &[]);
+    assert_eq!(next, baseline);
 }

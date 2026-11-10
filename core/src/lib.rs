@@ -15,6 +15,11 @@ pub struct Item {
     pub fields: BTreeMap<String, String>,
     pub team_id: Option<String>,
     pub hash: String,
+    /// An app's last full signature check, saved so the next scan can reuse its
+    /// verdict while the app is unchanged. Not in `fields`, so not hashed: a new
+    /// check time never shows as a change.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature_check: Option<collect::apps::SignatureCheck>,
 }
 
 impl Item {
@@ -26,12 +31,14 @@ impl Item {
             fields,
             team_id: None,
             hash,
+            signature_check: None,
         }
     }
 }
 
-/// A collector: the category it reads and the function that reads it.
-pub type Collector = (&'static str, fn() -> Vec<Item>);
+/// A collector: the category it reads and the function that reads it, handed the
+/// previous snapshot's items (apps uses them to skip re-checking unchanged apps).
+pub type Collector = (&'static str, fn(&[Item]) -> Vec<Item>);
 
 /// Whether the item records why something could not be read.
 pub fn is_error(item: &Item) -> bool {
@@ -54,7 +61,7 @@ pub fn collect_all(collectors: &[Collector], previous: &[Item], skip: &[&str]) -
             items.extend(before.cloned());
             continue;
         }
-        let mut fresh = collect();
+        let mut fresh = collect(previous);
         uniquify_keys(&mut fresh);
         if !fresh.is_empty() && fresh.iter().all(is_error) {
             items.extend(
