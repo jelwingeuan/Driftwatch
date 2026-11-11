@@ -148,3 +148,60 @@ func decodesRealHistoryOutput() async throws {
         Change.self, from: Data(#"{"category":"cron","fields":{},"key":"job","kind":"removed","title":"job"}"#.utf8))
     #expect(removed.status.symbol == "minus.circle")
 }
+
+/// A history whose latest scan is `now`, with one scan per (age, risks) pair.
+private func history(
+    now: Date, scans: [(age: TimeInterval, risks: [String])], errors: [History.Problem] = [], itemsTotal: Int = 412
+) throws -> History {
+    let entries = try scans.enumerated().map { i, scan in
+        let changes = try scan.risks.enumerated().map { j, risk in
+            let json = #"{"category":"launchd","fields":{},"key":"/\#(i)-\#(j).plist","kind":"added","title":"x","risk":"\#(risk)"}"#
+            return try decodeCLIOutput(Change.self, from: Data(json.utf8))
+        }
+        return Entry(snapshotID: Int64(10 - i), takenAt: now - scan.age, changes: changes)
+    }
+    return History(latest: .init(snapshotID: 10, takenAt: now), itemsTotal: itemsTotal, categories: nil,
+                   errors: errors, entries: entries)
+}
+
+@Test func verdictCountsRiskyChangesFromTheLastSevenDays() throws {
+    let now = Date(timeIntervalSince1970: 1_794_239_129)
+    let day: TimeInterval = 24 * 60 * 60
+    // Low risk counts for nothing; high risk 8 days ago is outside the window.
+    let quiet = try history(now: now, scans: [(1 * day, ["low"]), (8 * day, ["high"])])
+    #expect(Verdict.from(quiet, scanWarning: nil, now: now) == .quiet)
+    let look = try history(now: now, scans: [(1 * day, ["medium", "low"]), (5 * day, ["high"])])
+    #expect(Verdict.from(look, scanWarning: nil, now: now) == .worthALook(2))
+    // Inclusive: exactly 7 days old still counts, a second more does not.
+    let edge = try history(now: now, scans: [(7 * day, ["high"])])
+    #expect(Verdict.from(edge, scanWarning: nil, now: now) == .worthALook(1))
+    let past = try history(now: now, scans: [(7 * day + 1, ["high"])])
+    #expect(Verdict.from(past, scanWarning: nil, now: now) == .quiet)
+}
+
+@Test func verdictIsNeverQuietWhenDriftwatchCantSeeEverything() throws {
+    let now = Date(timeIntervalSince1970: 1_794_239_129)
+    let quiet = try history(now: now, scans: [])
+    #expect(Verdict.from(quiet, scanWarning: nil, now: now) == .quiet)
+    // No timeline (not read yet, or it failed to decode), no scan yet, or an empty scan.
+    #expect(Verdict.from(nil, scanWarning: nil, now: now) == .cantSee)
+    let noScan = History(latest: nil, itemsTotal: 0, categories: nil, errors: [], entries: [])
+    #expect(Verdict.from(noScan, scanWarning: nil, now: now) == .cantSee)
+    #expect(Verdict.from(try history(now: now, scans: [], itemsTotal: 0), scanWarning: nil, now: now) == .cantSee)
+    // A failed scan.
+    let failed = AppModel.scanWarning(error: "The scan stopped unexpectedly.", lastScan: now, isScanning: false, now: now)
+    #expect(Verdict.from(quiet, scanWarning: failed, now: now) == .cantSee)
+    // An old scan, even while a new scan runs (when there is no warning yet).
+    #expect(Verdict.from(quiet, scanWarning: nil, now: now + 61 * 60) == .cantSee)
+    // Unreadable items win over risky changes.
+    let unreadable = try history(
+        now: now, scans: [(60, ["high"])], errors: [.init(category: "tcc", fields: ["error": "needs Full Disk Access"])])
+    #expect(Verdict.from(unreadable, scanWarning: nil, now: now) == .cantSee)
+}
+
+@Test func verdictSentencesNameTheWindow() {
+    #expect(Verdict.quiet.sentence == "No risky changes in the last 7 days.")
+    #expect(Verdict.worthALook(1).sentence == "1 risky change in the last 7 days.")
+    #expect(Verdict.worthALook(2).sentence == "2 risky changes in the last 7 days.")
+    #expect(Verdict.cantSee.sentence == "Driftwatch can’t see everything right now.")
+}

@@ -59,6 +59,11 @@ struct History: Decodable {
 
     /// Every change, newest scan first.
     var rows: [Row] { entries.flatMap(\.rows) }
+
+    /// The changes from scans at or after `date`, newest first.
+    func changes(since date: Date) -> [Change] {
+        entries.filter { $0.takenAt >= date }.flatMap(\.distinctChanges)
+    }
 }
 
 /// One scan that changed something compared with the scan before it.
