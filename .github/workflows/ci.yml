@@ -19,3 +19,20 @@ jobs:
       - run: scripts/check-no-network.sh
       - run: cargo install cargo-audit --locked
       - run: cargo audit
+
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The runner ships rustup; no third-party toolchain action needed.
+      - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt && rustup default stable
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      # Also builds target/debug/driftwatch, which swift test then decodes real output from.
+      - run: cargo test
+      - run: swift build
+        working-directory: app
+      - run: swift test
+        working-directory: app
