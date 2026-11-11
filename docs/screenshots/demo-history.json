@@ -1,6 +1,18 @@
 {
   "latest": {"snapshot_id": 42, "taken_at": "2026-11-10T18:00:00Z"},
   "items_total": 412,
+  "categories": [
+    {"category": "apps", "items": 90},
+    {"category": "btm", "items": 41},
+    {"category": "certs", "items": 168},
+    {"category": "cron", "items": 1},
+    {"category": "launchd", "items": 38},
+    {"category": "network", "items": 4},
+    {"category": "shell", "items": 6},
+    {"category": "ssh", "items": 5},
+    {"category": "sysext", "items": 2},
+    {"category": "tcc", "items": 57}
+  ],
   "errors": [],
   "entries": [
     {

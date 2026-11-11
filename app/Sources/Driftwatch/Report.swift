@@ -32,17 +32,30 @@ struct History: Decodable {
         let fields: [String: String]
     }
 
+    /// How many items the latest scan found in one category.
+    struct ItemCount: Decodable {
+        let category: String
+        let items: Int
+    }
+
     let latest: Scan?
     let itemsTotal: Int
+    /// Optional so output from before the per-category counts still decodes.
+    let categories: [ItemCount]?
     let errors: [Problem]
     let entries: [Entry]
 
     enum CodingKeys: String, CodingKey {
-        case latest, itemsTotal = "items_total", errors, entries
+        case latest, itemsTotal = "items_total", categories, errors, entries
     }
 
     /// The privacy (TCC) database could not be opened, which means no Full Disk Access.
     var needsFullDiskAccess: Bool { errors.contains { $0.category == "tcc" } }
+
+    /// Items the latest scan found in a category, or nil when the CLI didn't say.
+    func items(in category: String) -> Int? {
+        categories.map { $0.first { $0.category == category }?.items ?? 0 }
+    }
 
     /// Every change, newest scan first.
     var rows: [Row] { entries.flatMap(\.rows) }

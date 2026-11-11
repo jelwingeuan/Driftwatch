@@ -113,7 +113,28 @@ fn history_of_empty_store() {
     let v = history(&store, 10).unwrap();
     assert!(v["latest"].is_null());
     assert_eq!(v["items_total"], 0);
+    assert_eq!(v["categories"].as_array().unwrap().len(), 0);
     assert_eq!(v["entries"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn history_counts_items_per_category() {
+    let mut store = Store::open_in_memory().unwrap();
+    store
+        .save_snapshot(&[
+            item("launchd", "/a.plist", &[]),
+            item("launchd", "/b.plist", &[]),
+            item("cron", "job", &[]),
+        ])
+        .unwrap();
+    let v = history(&store, 10).unwrap();
+    assert_eq!(
+        v["categories"],
+        serde_json::json!([
+            {"category": "cron", "items": 1},
+            {"category": "launchd", "items": 2},
+        ])
+    );
 }
 
 #[test]
@@ -129,12 +150,18 @@ fn history_is_newest_first_and_skips_scans_without_changes() {
     let s4 = store.save_snapshot(&[a2, b, err]).unwrap(); // a modified, error added
 
     let v = history(&store, 10).unwrap();
-    assert_eq!(keys(&v), ["entries", "errors", "items_total", "latest"]);
+    assert_eq!(
+        keys(&v),
+        ["categories", "entries", "errors", "items_total", "latest"]
+    );
     assert_eq!(v["latest"]["snapshot_id"], s4.id);
     assert_eq!(v["latest"]["taken_at"], s4.taken_at.as_str());
     assert_eq!(v["items_total"], 3);
     assert_eq!(v["errors"].as_array().unwrap().len(), 1);
     assert_eq!(v["errors"][0]["category"], "tcc");
+    // The latest scan's items, the unreadable one included.
+    assert_eq!(v["categories"][2]["category"], "tcc");
+    assert_eq!(v["categories"][2]["items"], 1);
 
     let entries = v["entries"].as_array().unwrap();
     let ids: Vec<i64> = entries

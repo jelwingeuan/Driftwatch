@@ -4,6 +4,7 @@ use crate::explain::{explain, field_label};
 use crate::store::{Snapshot, Store};
 use crate::Item;
 use serde_json::{json, Map, Value};
+use std::collections::BTreeMap;
 
 /// `{category, key, fields, team_id, field_labels}` plus the `explain` fields:
 /// `title, summary, risk, risk_reason, added_by, confidence`.
@@ -67,15 +68,26 @@ pub fn scan_json(snapshot: &Snapshot, baseline: bool, changes: &[Change]) -> Val
 }
 
 /// Output of `history --json`: the newest scan (`latest`, null before the first
-/// scan), its item count and error items, and up to `limit` `entries`, newest
-/// first, one per scan that changed something compared with the scan before it.
+/// scan), its item count, its item count per category (`categories`, sorted by
+/// name) and error items, and up to `limit` `entries`, newest first, one per
+/// scan that changed something compared with the scan before it.
 pub fn history(store: &Store, limit: usize) -> rusqlite::Result<Value> {
     let snapshots = store.snapshots()?;
     let Some(latest) = snapshots.first() else {
-        return Ok(json!({"latest": null, "items_total": 0, "errors": [], "entries": []}));
+        return Ok(
+            json!({"latest": null, "items_total": 0, "categories": [], "errors": [], "entries": []}),
+        );
     };
     let mut newer = store.items(latest.id)?;
     let items_total = newer.len();
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for item in &newer {
+        *counts.entry(&item.category).or_default() += 1;
+    }
+    let categories: Vec<Value> = counts
+        .into_iter()
+        .map(|(category, items)| json!({"category": category, "items": items}))
+        .collect();
     let errors: Vec<Value> = newer
         .iter()
         .filter(|i| i.fields.contains_key("error"))
@@ -100,6 +112,7 @@ pub fn history(store: &Store, limit: usize) -> rusqlite::Result<Value> {
     Ok(json!({
         "latest": {"snapshot_id": latest.id, "taken_at": latest.taken_at},
         "items_total": items_total,
+        "categories": categories,
         "errors": errors,
         "entries": entries,
     }))

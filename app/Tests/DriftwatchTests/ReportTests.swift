@@ -12,10 +12,13 @@ import Testing
     "snapshot_id":4,"taken_at":"2026-11-09T15:45:29Z"}],\
     "errors":[{"category":"tcc","fields":{"error":"needs Full Disk Access"},"key":"/TCC.db",\
     "team_id":null,"title":"TCC.db"}],"items_total":3,\
+    "categories":[{"category":"launchd","items":2},{"category":"tcc","items":1}],\
     "latest":{"snapshot_id":4,"taken_at":"2026-11-09T15:45:29Z"}}
     """
     let history = try decodeCLIOutput(History.self, from: Data(json.utf8))
     #expect(history.itemsTotal == 3)
+    #expect(history.items(in: "launchd") == 2)
+    #expect(history.items(in: "cron") == 0)
     #expect(history.latest?.takenAt == Date(timeIntervalSince1970: 1_794_239_129))
     #expect(history.needsFullDiskAccess)
     let change = try #require(history.rows.first?.change)
@@ -87,8 +90,11 @@ private func entry(launchd: [(String, String)], btm: [(String, String)]) throws 
     {"baseline":true,"changes":[],"snapshot_id":1,"taken_at":"2026-11-09T15:22:02Z"}
     """
     #expect(try decodeCLIOutput(ScanResult.self, from: Data(scan.utf8)).baseline)
+    // Output from before the per-category counts still decodes.
     let empty = #"{"entries":[],"errors":[],"items_total":0,"latest":null}"#
-    #expect(try decodeCLIOutput(History.self, from: Data(empty.utf8)).latest == nil)
+    let history = try decodeCLIOutput(History.self, from: Data(empty.utf8))
+    #expect(history.latest == nil)
+    #expect(history.items(in: "launchd") == nil)
 }
 
 /// The Rust debug build, when it has been built (`cargo build` at the repo root).
