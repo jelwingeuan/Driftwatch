@@ -44,13 +44,20 @@ struct History: Decodable {
     let categories: [ItemCount]?
     let errors: [Problem]
     let entries: [Entry]
+    /// False when the stored history no longer matches its hashes. Optional so output
+    /// from before history hashes still decodes; missing counts as intact.
+    let historyIntact: Bool?
 
     enum CodingKeys: String, CodingKey {
         case latest, itemsTotal = "items_total", categories, errors, entries
+        case historyIntact = "history_intact"
     }
 
     /// The privacy (TCC) database could not be opened, which means no Full Disk Access.
     var needsFullDiskAccess: Bool { errors.contains { $0.category == "tcc" } }
+
+    /// A warning in plain words when the history was edited outside Driftwatch, else nil.
+    var editWarning: String? { historyIntact == false ? "History was edited outside Driftwatch." : nil }
 
     /// Items the latest scan found in a category, or nil when the CLI didn't say.
     func items(in category: String) -> Int? {

@@ -124,7 +124,7 @@ cargo run --release -- scan --skip btm   # leave out an area (here login & backg
 cargo run --release -- history --json --limit 20
 ```
 
-History is stored in `~/Library/Application Support/Driftwatch/driftwatch.db`.
+History is stored in `~/Library/Application Support/Driftwatch/driftwatch.db`. Each scan is saved with a hash chained to the scan before it, so the app can warn that the history was edited outside Driftwatch, though this only catches edits made without recomputing the hashes.
 
 ## How it's built
 

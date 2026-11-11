@@ -95,6 +95,8 @@ private func entry(launchd: [(String, String)], btm: [(String, String)]) throws 
     let history = try decodeCLIOutput(History.self, from: Data(empty.utf8))
     #expect(history.latest == nil)
     #expect(history.items(in: "launchd") == nil)
+    // Output from before history hashes counts as intact.
+    #expect(history.editWarning == nil)
 }
 
 /// The Rust debug build, when it has been built (`cargo build` at the repo root).
@@ -151,7 +153,8 @@ func decodesRealHistoryOutput() async throws {
 
 /// A history whose latest scan is `now`, with one scan per (age, risks) pair.
 private func history(
-    now: Date, scans: [(age: TimeInterval, risks: [String])], errors: [History.Problem] = [], itemsTotal: Int = 412
+    now: Date, scans: [(age: TimeInterval, risks: [String])], errors: [History.Problem] = [], itemsTotal: Int = 412,
+    intact: Bool? = nil
 ) throws -> History {
     let entries = try scans.enumerated().map { i, scan in
         let changes = try scan.risks.enumerated().map { j, risk in
@@ -161,7 +164,7 @@ private func history(
         return Entry(snapshotID: Int64(10 - i), takenAt: now - scan.age, changes: changes)
     }
     return History(latest: .init(snapshotID: 10, takenAt: now), itemsTotal: itemsTotal, categories: nil,
-                   errors: errors, entries: entries)
+                   errors: errors, entries: entries, historyIntact: intact)
 }
 
 @Test func verdictCountsRiskyChangesFromTheLastSevenDays() throws {
@@ -185,7 +188,7 @@ private func history(
     #expect(Verdict.from(quiet, scanWarning: nil, now: now) == .quiet)
     // No timeline (not read yet, or it failed to decode), no scan yet, or an empty scan.
     #expect(Verdict.from(nil, scanWarning: nil, now: now) == .cantSee)
-    let noScan = History(latest: nil, itemsTotal: 0, categories: nil, errors: [], entries: [])
+    let noScan = History(latest: nil, itemsTotal: 0, categories: nil, errors: [], entries: [], historyIntact: nil)
     #expect(Verdict.from(noScan, scanWarning: nil, now: now) == .cantSee)
     #expect(Verdict.from(try history(now: now, scans: [], itemsTotal: 0), scanWarning: nil, now: now) == .cantSee)
     // A failed scan.
@@ -200,6 +203,18 @@ private func history(
     let unreadable = try history(
         now: now, scans: [(60, ["high"])], errors: [.init(category: "tcc", fields: ["error": "needs Full Disk Access"])])
     #expect(Verdict.from(unreadable, scanWarning: nil, now: now) == .cantSee)
+}
+
+@Test func anEditedHistoryShowsAWarningAndIsNeverQuiet() throws {
+    let now = Date(timeIntervalSince1970: 1_794_239_129)
+    let json = #"{"entries":[],"errors":[],"items_total":0,"latest":null,"history_intact":false}"#
+    #expect(try decodeCLIOutput(History.self, from: Data(json.utf8)).historyIntact == false)
+    let edited = try history(now: now, scans: [], intact: false)
+    #expect(edited.editWarning == "History was edited outside Driftwatch.")
+    #expect(Verdict.from(edited, scanWarning: nil, now: now) == .cantSee)
+    let intact = try history(now: now, scans: [], intact: true)
+    #expect(intact.editWarning == nil)
+    #expect(Verdict.from(intact, scanWarning: nil, now: now) == .quiet)
 }
 
 @Test func verdictSentencesNameTheWindow() {

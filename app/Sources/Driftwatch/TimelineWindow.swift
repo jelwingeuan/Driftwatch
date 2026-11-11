@@ -196,6 +196,9 @@ struct TimelineWindow: View {
                     }
                 }
             }
+            if let warning = model.history?.editWarning {
+                Banner(symbol: "exclamationmark.triangle", text: warning)
+            }
         }
     }
 

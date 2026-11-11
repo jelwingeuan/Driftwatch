@@ -1,5 +1,6 @@
 use crate::Item;
 use rusqlite::{params, Connection, Result};
+use sha2::{Digest, Sha256};
 use std::fs::{self, Permissions};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -46,15 +47,38 @@ impl Store {
         Store::init(Connection::open_in_memory()?)
     }
 
-    fn init(conn: Connection) -> Result<Store> {
+    fn init(mut conn: Connection) -> Result<Store> {
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS snapshots (
-                 id INTEGER PRIMARY KEY, taken_at INTEGER NOT NULL);
+                 id INTEGER PRIMARY KEY, taken_at INTEGER NOT NULL, hash TEXT);
              CREATE TABLE IF NOT EXISTS items (
                  snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),
                  category TEXT NOT NULL, key TEXT NOT NULL, json TEXT NOT NULL);
              CREATE INDEX IF NOT EXISTS items_snapshot ON items(snapshot_id);",
         )?;
+        // A database from before hashes gets them once, oldest first, from what each
+        // snapshot holds now: the history as it stands, edits and all, starts the chain.
+        let hashed: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('snapshots') WHERE name = 'hash'",
+            [],
+            |r| r.get(0),
+        )?;
+        if !hashed {
+            let tx = conn.transaction()?;
+            tx.execute_batch("ALTER TABLE snapshots ADD COLUMN hash TEXT")?;
+            let ids: Vec<i64> = tx
+                .prepare("SELECT id FROM snapshots ORDER BY id")?
+                .query_map([], |r| r.get(0))?
+                .collect::<Result<_>>()?;
+            for id in ids {
+                let hash = chain_hash(&tx, id)?;
+                tx.execute(
+                    "UPDATE snapshots SET hash = ?1 WHERE id = ?2",
+                    params![hash, id],
+                )?;
+            }
+            tx.commit()?;
+        }
         Ok(Store { conn })
     }
 
@@ -83,8 +107,30 @@ impl Store {
                 stmt.execute(params![id, item.category, item.key, json])?;
             }
         }
+        let hash = chain_hash(&tx, id)?;
+        tx.execute(
+            "UPDATE snapshots SET hash = ?1 WHERE id = ?2",
+            params![hash, id],
+        )?;
         tx.commit()?;
         Ok(snapshot)
+    }
+
+    /// Whether every snapshot's stored hash still matches `chain_hash`: false once a
+    /// snapshot or item was edited, added or deleted outside Driftwatch, unless whoever
+    /// did it also recomputed the hashes. Deleting the newest snapshots goes unseen.
+    pub fn history_intact(&self) -> Result<bool> {
+        let rows: Vec<(i64, Option<String>)> = self
+            .conn
+            .prepare("SELECT id, hash FROM snapshots ORDER BY id")?
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<Result<_>>()?;
+        for (id, hash) in rows {
+            if hash != Some(chain_hash(&self.conn, id)?) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     /// Every snapshot, newest first.
@@ -127,6 +173,39 @@ impl Store {
             .query_row("SELECT MAX(id) FROM snapshots", [], |r| r.get(0))?;
         id.map(|id| self.items(id)).transpose()
     }
+}
+
+/// Snapshot `id`'s link in the history chain: SHA-256 hex over the stored hash of
+/// the snapshot before it ("" for the first), then its id, its taken_at and each
+/// of its items' category, key and json as stored, in order. Numbers are 8 bytes
+/// big-endian and each text comes after its length in bytes, so no two different
+/// histories encode the same.
+fn chain_hash(conn: &Connection, id: i64) -> Result<String> {
+    let (taken_at, prev): (i64, String) = conn.query_row(
+        "SELECT taken_at, COALESCE(
+             (SELECT hash FROM snapshots WHERE id < ?1 ORDER BY id DESC LIMIT 1), '')
+         FROM snapshots WHERE id = ?1",
+        [id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    fn text(h: &mut Sha256, s: &str) {
+        h.update((s.len() as u64).to_be_bytes());
+        h.update(s);
+    }
+    let mut h = Sha256::new();
+    text(&mut h, &prev);
+    h.update(id.to_be_bytes());
+    h.update(taken_at.to_be_bytes());
+    let mut stmt = conn.prepare_cached(
+        "SELECT category, key, json FROM items WHERE snapshot_id = ?1 ORDER BY rowid",
+    )?;
+    let mut rows = stmt.query([id])?;
+    while let Some(r) = rows.next()? {
+        for i in 0..3 {
+            text(&mut h, r.get_ref(i)?.as_str()?);
+        }
+    }
+    Ok(crate::hex(&h.finalize()))
 }
 
 #[cfg(test)]
@@ -186,6 +265,71 @@ mod tests {
         assert_eq!(files.each_ref().map(|f| mode(f)), [0o600; 3]);
         drop(other);
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Change the database behind Driftwatch's back.
+    fn edit(store: &Store, sql: &str) {
+        store.conn.execute_batch(sql).unwrap();
+    }
+
+    fn three_scans() -> Store {
+        let mut store = Store::open_in_memory().unwrap();
+        for keys in [&["a"][..], &["a", "b"], &["b", "c"]] {
+            let items: Vec<Item> = keys.iter().map(|k| item(k)).collect();
+            store.save_snapshot(&items).unwrap();
+        }
+        store
+    }
+
+    #[test]
+    fn history_is_intact_until_edited_outside_driftwatch() {
+        assert!(Store::open_in_memory().unwrap().history_intact().unwrap());
+        assert!(three_scans().history_intact().unwrap());
+        for sql in [
+            r#"UPDATE items SET json = replace(json, '"b"', '"x"') WHERE snapshot_id = 2"#,
+            "UPDATE snapshots SET taken_at = taken_at - 60 WHERE id = 2",
+            "UPDATE snapshots SET hash = NULL WHERE id = 3",
+            "INSERT INTO items VALUES (2, 'cron', 'job', '{}')",
+            // The same bytes, split between fields another way.
+            "UPDATE items SET category = 'launch', key = 'd' || key WHERE snapshot_id = 2",
+        ] {
+            let store = three_scans();
+            edit(&store, sql);
+            assert!(!store.history_intact().unwrap(), "{sql}");
+        }
+    }
+
+    #[test]
+    fn deleting_a_snapshot_or_an_item_breaks_the_chain() {
+        for sql in [
+            "DELETE FROM items WHERE snapshot_id = 2 AND key = 'b'",
+            "DELETE FROM items WHERE snapshot_id = 2; DELETE FROM snapshots WHERE id = 2",
+            "DELETE FROM items WHERE snapshot_id = 1; DELETE FROM snapshots WHERE id = 1",
+        ] {
+            let store = three_scans();
+            edit(&store, sql);
+            assert!(!store.history_intact().unwrap(), "{sql}");
+        }
+    }
+
+    #[test]
+    fn snapshots_from_before_hashes_start_the_chain_as_they_are() {
+        // A database from before hashes, with a scan that was edited back then.
+        let old = three_scans();
+        edit(
+            &old,
+            r#"ALTER TABLE snapshots DROP COLUMN hash;
+               UPDATE items SET json = replace(json, '"c"', '"x"') WHERE snapshot_id = 3;"#,
+        );
+        let mut store = Store::init(old.conn).unwrap();
+        assert!(store.history_intact().unwrap());
+        store.save_snapshot(&[item("d")]).unwrap();
+        assert!(store.history_intact().unwrap());
+        edit(
+            &store,
+            r#"UPDATE items SET json = replace(json, '"a"', '"x"') WHERE snapshot_id = 1"#,
+        );
+        assert!(!store.history_intact().unwrap());
     }
 
     #[test]

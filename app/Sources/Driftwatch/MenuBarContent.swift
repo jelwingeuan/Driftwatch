@@ -36,6 +36,12 @@ struct MenuBarContent: View {
                 }
             }
 
+            if let warning = model.history?.editWarning {
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
             Divider()
 
             let recent = Array((model.history?.rows ?? []).prefix(5))

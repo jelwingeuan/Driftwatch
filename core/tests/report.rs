@@ -115,6 +115,7 @@ fn history_of_empty_store() {
     assert_eq!(v["items_total"], 0);
     assert_eq!(v["categories"].as_array().unwrap().len(), 0);
     assert_eq!(v["entries"].as_array().unwrap().len(), 0);
+    assert_eq!(v["history_intact"], true);
 }
 
 #[test]
@@ -152,8 +153,16 @@ fn history_is_newest_first_and_skips_scans_without_changes() {
     let v = history(&store, 10, None).unwrap();
     assert_eq!(
         keys(&v),
-        ["categories", "entries", "errors", "items_total", "latest"]
+        [
+            "categories",
+            "entries",
+            "errors",
+            "history_intact",
+            "items_total",
+            "latest"
+        ]
     );
+    assert_eq!(v["history_intact"], true);
     assert_eq!(v["latest"]["snapshot_id"], s4.id);
     assert_eq!(v["latest"]["taken_at"], s4.taken_at.as_str());
     assert_eq!(v["items_total"], 3);
@@ -203,4 +212,21 @@ fn history_since_goes_past_the_limit() {
     assert_eq!(count(Some(&s2.taken_at)), 2);
     // A since after every scan leaves the limit as it was.
     assert_eq!(count(Some("9999-12-31T23:59:59Z")), 1);
+}
+
+#[test]
+fn history_says_when_it_was_edited_outside_driftwatch() {
+    let dir = std::env::temp_dir().join(format!("driftwatch-edited-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = dir.join("driftwatch.db");
+    let mut store = Store::open(&path).unwrap();
+    store.save_snapshot(&[item("cron", "job", &[])]).unwrap();
+    store.save_snapshot(&[]).unwrap();
+    assert_eq!(history(&store, 10, None).unwrap()["history_intact"], true);
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute("DELETE FROM items", [])
+        .unwrap();
+    assert_eq!(history(&store, 10, None).unwrap()["history_intact"], false);
+    std::fs::remove_dir_all(&dir).unwrap();
 }

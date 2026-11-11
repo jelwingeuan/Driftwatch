@@ -72,12 +72,16 @@ pub fn scan_json(snapshot: &Snapshot, baseline: bool, changes: &[Change]) -> Val
 /// name) and error items, and up to `limit` `entries`, newest first, one per
 /// scan that changed something compared with the scan before it. With `since`
 /// (written like `taken_at`), every entry from then on is included, past `limit`.
+/// `history_intact` is false once the stored history was edited outside Driftwatch
+/// (see `Store::history_intact`).
 pub fn history(store: &Store, limit: usize, since: Option<&str>) -> rusqlite::Result<Value> {
+    let history_intact = store.history_intact()?;
     let snapshots = store.snapshots()?;
     let Some(latest) = snapshots.first() else {
-        return Ok(
-            json!({"latest": null, "items_total": 0, "categories": [], "errors": [], "entries": []}),
-        );
+        return Ok(json!({
+            "latest": null, "items_total": 0, "categories": [], "errors": [], "entries": [],
+            "history_intact": history_intact,
+        }));
     };
     let mut newer = store.items(latest.id)?;
     let items_total = newer.len();
@@ -117,5 +121,6 @@ pub fn history(store: &Store, limit: usize, since: Option<&str>) -> rusqlite::Re
         "categories": categories,
         "errors": errors,
         "entries": entries,
+        "history_intact": history_intact,
     }))
 }
