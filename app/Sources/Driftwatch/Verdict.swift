@@ -11,11 +11,11 @@ enum Verdict: Hashable {
     static let window: TimeInterval = 7 * 24 * 60 * 60
 
     /// Never `.quiet` unless Driftwatch can vouch for it: no timeline, no scan yet,
-    /// an empty scan, unreadable items, or a failed or old scan (even while a new
-    /// one runs) all give `.cantSee`.
+    /// an empty scan, unreadable items, a failed or old scan (even while a new one
+    /// runs), or a scan dated over 5 minutes ahead (a wrong clock) all give `.cantSee`.
     static func from(_ history: History?, scanWarning: String?, now: Date) -> Verdict {
         guard let history, let latest = history.latest, history.itemsTotal > 0, history.errors.isEmpty,
-              scanWarning == nil, now.timeIntervalSince(latest.takenAt) <= 2 * AppModel.scanInterval
+              scanWarning == nil, (-5 * 60...2 * AppModel.scanInterval).contains(now.timeIntervalSince(latest.takenAt))
         else { return .cantSee }
         let risky = history.changes(since: now - window).count { $0.risk == "medium" || $0.risk == "high" }
         return risky > 0 ? .worthALook(risky) : .quiet

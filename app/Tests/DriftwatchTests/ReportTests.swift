@@ -106,7 +106,7 @@ private let cliBuild = URL(fileURLWithPath: #filePath)
 @Test(.enabled(if: FileManager.default.isExecutableFile(atPath: cliBuild.path)))
 func decodesRealHistoryOutput() async throws {
     setenv("DRIFTWATCH_CLI", cliBuild.path, 1)
-    let history = try await CLI.run(["history", "--json"], as: History.self)
+    let history = try await CLI.run(AppModel.historyArguments, as: History.self)
     #expect(history.itemsTotal >= 0)
 }
 
@@ -193,6 +193,9 @@ private func history(
     #expect(Verdict.from(quiet, scanWarning: failed, now: now) == .cantSee)
     // An old scan, even while a new scan runs (when there is no warning yet).
     #expect(Verdict.from(quiet, scanWarning: nil, now: now + 61 * 60) == .cantSee)
+    // A scan dated in the future (a wrong clock), beyond a few minutes' leeway.
+    #expect(Verdict.from(quiet, scanWarning: nil, now: now - 4 * 60) == .quiet)
+    #expect(Verdict.from(quiet, scanWarning: nil, now: now - 6 * 60) == .cantSee)
     // Unreadable items win over risky changes.
     let unreadable = try history(
         now: now, scans: [(60, ["high"])], errors: [.init(category: "tcc", fields: ["error": "needs Full Disk Access"])])

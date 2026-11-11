@@ -17,6 +17,9 @@ final class AppModel {
     nonisolated static let scanInterval: TimeInterval = 30 * 60
     /// How long scheduled scans may leave out login & background items.
     nonisolated static let loginItemsInterval: TimeInterval = 24 * 60 * 60
+    /// The timeline, with every change from the last 31 days even past the CLI's
+    /// 100-scan limit: the overview's 30-day chart and 7-day verdict need them all.
+    nonisolated static let historyArguments = ["history", "--json", "--days", "31"]
     private static let lastFullScanKey = "lastFullScan"
 
     init() {
@@ -90,7 +93,7 @@ final class AppModel {
         do {
             _ = try await CLI.run(["scan", "--json"] + (skip ? ["--skip", "btm"] : []), as: ScanResult.self)
             if !skip { defaults.set(Date.now, forKey: Self.lastFullScanKey) }
-            history = try await CLI.run(["history", "--json"], as: History.self)
+            history = try await CLI.run(Self.historyArguments, as: History.self)
             lastError = nil
         } catch {
             fail(error)
@@ -99,7 +102,7 @@ final class AppModel {
 
     func reload() async {
         do {
-            history = try await CLI.run(["history", "--json"], as: History.self)
+            history = try await CLI.run(Self.historyArguments, as: History.self)
             lastError = nil
         } catch {
             fail(error)
