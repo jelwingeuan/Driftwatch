@@ -1,5 +1,7 @@
 use crate::Item;
 use rusqlite::{params, Connection, Result};
+use std::fs::{self, Permissions};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -23,12 +25,21 @@ pub fn default_path() -> Result<PathBuf, std::env::VarError> {
 }
 
 impl Store {
-    /// Open (and create, with its parent dir) the database at `path`.
+    /// Open (and create, with its parent dir) the database at `path`. Each time,
+    /// only this user is let in: the parent dir is set to 0700, the database and
+    /// any -wal and -shm files next to it to 0600.
     pub fn open(path: &Path) -> Result<Store> {
         if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
+            let _ = fs::create_dir_all(dir);
+            let _ = fs::set_permissions(dir, Permissions::from_mode(0o700));
         }
-        Store::init(Connection::open(path)?)
+        let store = Store::init(Connection::open(path)?)?;
+        for suffix in ["", "-wal", "-shm"] {
+            let mut file = path.as_os_str().to_owned();
+            file.push(suffix);
+            let _ = fs::set_permissions(file, Permissions::from_mode(0o600));
+        }
+        Ok(store)
     }
 
     pub fn open_in_memory() -> Result<Store> {
@@ -147,6 +158,34 @@ mod tests {
             store.latest_items().unwrap(),
             Some(vec![item("b"), item("c")])
         );
+    }
+
+    #[test]
+    fn open_lets_only_this_user_in() {
+        let dir = std::env::temp_dir().join(format!("driftwatch-store-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let db = dir.join("driftwatch.db");
+        let files = ["", "-wal", "-shm"].map(|s| format!("{}{s}", db.display()));
+        let mode = |p: &str| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        let dir = dir.to_str().unwrap();
+
+        drop(Store::open(&db).unwrap());
+        assert_eq!((mode(dir), mode(&files[0])), (0o700, 0o600));
+
+        // Loosened since, with -wal and -shm files held open by another connection.
+        let other = Connection::open(&db).unwrap();
+        other
+            .execute_batch("PRAGMA journal_mode = WAL; CREATE TABLE t (x);")
+            .unwrap();
+        fs::set_permissions(dir, Permissions::from_mode(0o755)).unwrap();
+        for f in &files {
+            fs::set_permissions(f, Permissions::from_mode(0o644)).unwrap();
+        }
+        let _store = Store::open(&db).unwrap();
+        assert_eq!(mode(dir), 0o700);
+        assert_eq!(files.each_ref().map(|f| mode(f)), [0o600; 3]);
+        drop(other);
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
