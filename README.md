@@ -10,18 +10,29 @@ Apps quietly add things to your Mac: helpers that start at login, permissions to
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/timeline-dark.png">
-    <img src="docs/screenshots/timeline-light.png" width="700" alt="The Driftwatch window. A sidebar lists the areas it watches. The timeline shows the latest scan first: a new startup item, com.example.updater, marked High risk because it downloads code from the internet and runs it; Chrome getting camera access; a new certificate; a Google Chrome update. An older scan below lists two new startup items and a changed SSH settings file.">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/overview-look-dark.png">
+    <img src="docs/screenshots/overview-look-light.png" width="700" alt="The Driftwatch overview. A spirit level with its bubble drifted off centre sits above the sentence “2 risky changes in the last 7 days.” and “Watching 412 items on this Mac.” A bar chart shows changes per day for the last 30 days: 3 on 6 November, one of them worth a look, and 4 on 10 November, one of them high risk. Below, each area Driftwatch watches lists its item count and its changes from the last 7 days, such as 3 changes in startup items.">
   </picture>
   <br>
   <sub>Example data, not a real Mac.</sub>
 </p>
 
-It's for anyone who installs apps and wants to know what they left behind. It runs in the menu bar and in a timeline window, and scans when it starts and every 30 minutes. Everything stays on your Mac: no account, no network calls, and the code is all here to check.
+It's for anyone who installs apps and wants to know what they left behind. It runs in the menu bar and in a window, and scans when it starts and every 30 minutes. The window opens on an overview: one sentence on whether anything risky changed in the last 7 days, changes per day for the last 30 days, and each area it watches. Everything stays on your Mac: no account, no network calls, and the code is all here to check.
 
 ## What it tells you
 
-Each change gets a short title, one plain sentence about what it is, a risk hint with the reason, and who probably added it. For the item at the top of the screenshot:
+Each change gets a short title, one plain sentence about what it is, a risk hint with the reason, and who probably added it.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/timeline-dark.png">
+    <img src="docs/screenshots/timeline-light.png" width="700" alt="The Driftwatch timeline. A sidebar lists the overview and the areas it watches. The timeline shows the latest scan first: a new startup item, com.example.updater, marked High risk because it downloads code from the internet and runs it; Chrome getting camera access; a new certificate; a Google Chrome update. An older scan below lists two new startup items and a changed SSH settings file.">
+  </picture>
+  <br>
+  <sub>Example data, not a real Mac.</sub>
+</p>
+
+For the item at the top of the screenshot:
 
 > **com.example.updater** (added, Startup items)
 >
@@ -96,7 +107,7 @@ To regenerate the README screenshots from the example data in `docs/screenshots/
 scripts/build-app.sh && scripts/screenshots.sh
 ```
 
-It runs a separate copy of the app with a stub scanner that only prints the example data, so your own history and settings are not touched.
+It runs a separate copy of the app with a stub scanner that only prints the example data, so your own history and settings are not touched. It writes the timeline and the overview in three states (nothing risky, risky changes, can't see everything), each in light and dark.
 
 ### Full Disk Access
 
