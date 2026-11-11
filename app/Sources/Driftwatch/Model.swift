@@ -136,15 +136,20 @@ enum CLI {
     static let timeout: TimeInterval = 10 * 60
 
     /// Next to the app's own executable (named `driftwatch-cli`, since the bundle's
-    /// file system may not tell `driftwatch` from `Driftwatch`), or `$DRIFTWATCH_CLI`
-    /// when run with `swift run`.
+    /// file system may not tell `driftwatch` from `Driftwatch`), or, in a debug build
+    /// only (`swift run`, `swift test`), `$DRIFTWATCH_CLI`. A release build never
+    /// runs a scanner named by the environment.
     static var url: URL? {
         let bundled = Bundle.main.executableURL?.deletingLastPathComponent()
             .appendingPathComponent("driftwatch-cli")
         if let bundled, FileManager.default.isExecutableFile(atPath: bundled.path) {
             return bundled
         }
+        #if DEBUG
         return ProcessInfo.processInfo.environment["DRIFTWATCH_CLI"].map(URL.init(fileURLWithPath:))
+        #else
+        return nil
+        #endif
     }
 
     static func run<T: Decodable>(_ arguments: [String], as type: T.Type) async throws -> T {
