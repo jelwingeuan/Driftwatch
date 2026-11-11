@@ -90,6 +90,15 @@ impl Store {
         rows.collect()
     }
 
+    /// The time `days` days ago, written like `Snapshot::taken_at`.
+    pub fn days_ago(&self, days: u32) -> Result<String> {
+        self.conn.query_row(
+            "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', 'now', ?1)",
+            [format!("-{days} days")],
+            |r| r.get(0),
+        )
+    }
+
     /// Items of one snapshot, in the order they were saved.
     pub fn items(&self, snapshot_id: i64) -> Result<Vec<Item>> {
         let mut stmt = self
@@ -138,5 +147,15 @@ mod tests {
             store.latest_items().unwrap(),
             Some(vec![item("b"), item("c")])
         );
+    }
+
+    #[test]
+    fn days_ago_is_written_like_taken_at() {
+        let mut store = Store::open_in_memory().unwrap();
+        let now = store.save_snapshot(&[]).unwrap().taken_at;
+        let day_ago = store.days_ago(1).unwrap();
+        assert_eq!(day_ago.len(), now.len());
+        assert!(day_ago < now);
+        assert!(store.days_ago(0).unwrap() >= now);
     }
 }

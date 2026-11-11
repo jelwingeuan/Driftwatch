@@ -70,8 +70,9 @@ pub fn scan_json(snapshot: &Snapshot, baseline: bool, changes: &[Change]) -> Val
 /// Output of `history --json`: the newest scan (`latest`, null before the first
 /// scan), its item count, its item count per category (`categories`, sorted by
 /// name) and error items, and up to `limit` `entries`, newest first, one per
-/// scan that changed something compared with the scan before it.
-pub fn history(store: &Store, limit: usize) -> rusqlite::Result<Value> {
+/// scan that changed something compared with the scan before it. With `since`
+/// (written like `taken_at`), every entry from then on is included, past `limit`.
+pub fn history(store: &Store, limit: usize, since: Option<&str>) -> rusqlite::Result<Value> {
     let snapshots = store.snapshots()?;
     let Some(latest) = snapshots.first() else {
         return Ok(
@@ -95,7 +96,8 @@ pub fn history(store: &Store, limit: usize) -> rusqlite::Result<Value> {
         .collect();
     let mut entries = Vec::new();
     for pair in snapshots.windows(2) {
-        if entries.len() >= limit {
+        // Same fixed-width UTC form on both sides, so comparing the text compares the times.
+        if entries.len() >= limit && since.is_none_or(|s| pair[0].taken_at.as_str() < s) {
             break;
         }
         let older = store.items(pair[1].id)?;

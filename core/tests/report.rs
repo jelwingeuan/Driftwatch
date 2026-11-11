@@ -110,7 +110,7 @@ fn scan_json_shape() {
 #[test]
 fn history_of_empty_store() {
     let store = Store::open_in_memory().unwrap();
-    let v = history(&store, 10).unwrap();
+    let v = history(&store, 10, None).unwrap();
     assert!(v["latest"].is_null());
     assert_eq!(v["items_total"], 0);
     assert_eq!(v["categories"].as_array().unwrap().len(), 0);
@@ -127,7 +127,7 @@ fn history_counts_items_per_category() {
             item("cron", "job", &[]),
         ])
         .unwrap();
-    let v = history(&store, 10).unwrap();
+    let v = history(&store, 10, None).unwrap();
     assert_eq!(
         v["categories"],
         serde_json::json!([
@@ -149,7 +149,7 @@ fn history_is_newest_first_and_skips_scans_without_changes() {
     let s3 = store.save_snapshot(&[a1, b.clone()]).unwrap(); // b added
     let s4 = store.save_snapshot(&[a2, b, err]).unwrap(); // a modified, error added
 
-    let v = history(&store, 10).unwrap();
+    let v = history(&store, 10, None).unwrap();
     assert_eq!(
         keys(&v),
         ["categories", "entries", "errors", "items_total", "latest"]
@@ -181,7 +181,26 @@ fn history_is_newest_first_and_skips_scans_without_changes() {
     assert_eq!(entries[1]["changes"][0]["kind"], "added");
     assert_eq!(entries[1]["changes"][0]["key"], "job");
 
-    let limited = history(&store, 1).unwrap();
+    let limited = history(&store, 1, None).unwrap();
     assert_eq!(limited["entries"].as_array().unwrap().len(), 1);
     assert_eq!(limited["entries"][0]["snapshot_id"], s4.id);
+}
+
+#[test]
+fn history_since_goes_past_the_limit() {
+    let mut store = Store::open_in_memory().unwrap();
+    store.save_snapshot(&[]).unwrap(); // baseline
+    let s2 = store.save_snapshot(&[item("cron", "a", &[])]).unwrap();
+    store.save_snapshot(&[item("cron", "b", &[])]).unwrap();
+    let count = |since: Option<&str>| {
+        history(&store, 1, since).unwrap()["entries"]
+            .as_array()
+            .unwrap()
+            .len()
+    };
+    // The limit alone would drop s2's change; everything since s2 is kept.
+    assert_eq!(count(None), 1);
+    assert_eq!(count(Some(&s2.taken_at)), 2);
+    // A since after every scan leaves the limit as it was.
+    assert_eq!(count(Some("9999-12-31T23:59:59Z")), 1);
 }

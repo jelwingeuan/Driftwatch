@@ -5,7 +5,7 @@ use driftwatch::store::{self, Store};
 use driftwatch::Collector;
 use std::error::Error;
 
-const USAGE: &str = "usage: driftwatch scan [--json] [--skip CATEGORY[,CATEGORY...]]\n       driftwatch history --json [--limit N]";
+const USAGE: &str = "usage: driftwatch scan [--json] [--skip CATEGORY[,CATEGORY...]]\n       driftwatch history --json [--limit N] [--days N]";
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -15,9 +15,9 @@ fn main() {
             Some(skip) => scan(json, &skip),
             None => usage(),
         },
-        (Some("history"), true) => match limit(&args) {
-            Some(n) => history(n),
-            None => usage(),
+        (Some("history"), true) => match (limit(&args), days(&args)) {
+            (Some(n), Some(days)) => history(n, days),
+            _ => usage(),
         },
         _ => usage(),
     };
@@ -40,6 +40,15 @@ fn limit(args: &[String]) -> Option<usize> {
     }
 }
 
+/// `--days N` (default none): every change from the last N days, past `--limit`;
+/// None when N is missing or not a number.
+fn days(args: &[String]) -> Option<Option<u32>> {
+    match args.iter().position(|a| a == "--days") {
+        None => Some(None),
+        Some(i) => args.get(i + 1)?.parse().ok().map(Some),
+    }
+}
+
 /// The categories after each `--skip` (repeatable, or comma-separated); None
 /// when one is missing or not a category.
 fn skips(args: &[String]) -> Option<Vec<&'static str>> {
@@ -58,8 +67,10 @@ fn open_store() -> Result<Store, Box<dyn Error>> {
     )?)
 }
 
-fn history(limit: usize) -> Result<(), Box<dyn Error>> {
-    println!("{}", report::history(&open_store()?, limit)?);
+fn history(limit: usize, days: Option<u32>) -> Result<(), Box<dyn Error>> {
+    let store = open_store()?;
+    let since = days.map(|d| store.days_ago(d)).transpose()?;
+    println!("{}", report::history(&store, limit, since.as_deref())?);
     Ok(())
 }
 
@@ -119,7 +130,7 @@ fn scan(json: bool, skip: &[&str]) -> Result<(), Box<dyn Error>> {
 
 #[cfg(test)]
 mod tests {
-    use super::skips;
+    use super::{days, skips};
 
     fn args(s: &str) -> Vec<String> {
         s.split(' ').map(String::from).collect()
@@ -135,5 +146,13 @@ mod tests {
         assert_eq!(skips(&args("scan --skip")), None);
         assert_eq!(skips(&args("scan --skip --json")), None);
         assert_eq!(skips(&args("scan --skip login")), None);
+    }
+
+    #[test]
+    fn days_takes_a_whole_number() {
+        assert_eq!(days(&args("history --json")), Some(None));
+        assert_eq!(days(&args("history --json --days 31")), Some(Some(31)));
+        assert_eq!(days(&args("history --json --days")), None);
+        assert_eq!(days(&args("history --json --days -1")), None);
     }
 }
