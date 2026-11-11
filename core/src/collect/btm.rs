@@ -6,7 +6,7 @@ pub const CATEGORY: &str = "btm";
 
 /// Background Task Management items (login items, background helpers) from `sfltool dumpbtm`.
 pub fn collect() -> Vec<Item> {
-    match run("sfltool", &["dumpbtm"]) {
+    match run("/usr/bin/sfltool", &["dumpbtm"]) {
         Ok(out) if out.contains("Records for UID") => parse(&out),
         Ok(_) => vec![error_item(
             CATEGORY,

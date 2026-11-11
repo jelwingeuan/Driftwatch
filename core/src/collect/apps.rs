@@ -79,7 +79,7 @@ pub fn collect(previous: &[Item]) -> Vec<Item> {
 pub fn app_item(app: &Path, previous: Option<&Item>) -> Item {
     let key = app.to_string_lossy();
     let out = match output(
-        Command::new("codesign")
+        Command::new("/usr/bin/codesign")
             .args(["-dv", "--verbose=4"])
             .arg(app),
         TOOL_LIMIT,
@@ -215,7 +215,9 @@ pub fn only_detritus(stderr: &str) -> bool {
 fn verify(app: &Path) -> BTreeMap<String, String> {
     let check = |strict| {
         output(
-            Command::new("codesign").args(["--verify", strict]).arg(app),
+            Command::new("/usr/bin/codesign")
+                .args(["--verify", strict])
+                .arg(app),
             VERIFY_LIMIT,
         )
     };

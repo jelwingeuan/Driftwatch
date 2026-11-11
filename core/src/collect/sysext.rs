@@ -6,7 +6,7 @@ pub const CATEGORY: &str = "sysext";
 
 /// System extensions from `systemextensionsctl list`.
 pub fn collect() -> Vec<Item> {
-    match run("systemextensionsctl", &["list"]) {
+    match run("/usr/bin/systemextensionsctl", &["list"]) {
         Ok(out) => parse(&out),
         Err(e) => vec![error_item(CATEGORY, "systemextensionsctl list", &e)],
     }

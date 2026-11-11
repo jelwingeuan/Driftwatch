@@ -8,7 +8,7 @@ pub const CATEGORY: &str = "cron";
 
 /// The current user's crontab lines plus the scripts in /etc/periodic.
 pub fn collect() -> Vec<Item> {
-    let mut items = match output(Command::new("crontab").arg("-l"), TOOL_LIMIT) {
+    let mut items = match output(Command::new("/usr/bin/crontab").arg("-l"), TOOL_LIMIT) {
         Ok(out) if out.status.success() => parse_crontab(&String::from_utf8_lossy(&out.stdout)),
         // "no crontab for <user>" is the normal empty case.
         Ok(out) if String::from_utf8_lossy(&out.stderr).contains("no crontab") => Vec::new(),

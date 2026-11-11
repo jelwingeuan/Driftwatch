@@ -13,7 +13,7 @@ pub fn collect() -> Vec<Item> {
     };
     let paths = list_files(CATEGORY, Path::new("/etc/resolver"), &mut items);
     items.extend(paths.iter().filter_map(|p| file_item(CATEGORY, p)));
-    match run("scutil", &["--dns"]) {
+    match run("/usr/sbin/scutil", &["--dns"]) {
         Ok(out) => items.extend(parse_dns(&out)),
         Err(e) => items.push(error_item(CATEGORY, "scutil --dns", &e)),
     }

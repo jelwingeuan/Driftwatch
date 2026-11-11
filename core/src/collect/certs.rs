@@ -11,7 +11,7 @@ pub fn collect() -> Vec<Item> {
     let mut items = Vec::new();
     let mut trust = Vec::new();
     for (args, domain) in [(&["-d"][..], "admin"), (&[][..], "user")] {
-        let mut cmd = Command::new("security");
+        let mut cmd = Command::new("/usr/bin/security");
         cmd.arg("dump-trust-settings").args(args);
         match output(&mut cmd, TOOL_LIMIT) {
             Ok(o) if o.status.success() => {
@@ -31,7 +31,7 @@ pub fn collect() -> Vec<Item> {
         args.push(login);
     }
     args.push("/Library/Keychains/System.keychain");
-    match run("security", &args) {
+    match run("/usr/bin/security", &args) {
         Ok(out) => items.extend(parse_certs(&out, &trust)),
         Err(e) => items.push(error_item(CATEGORY, "security find-certificate", &e)),
     }

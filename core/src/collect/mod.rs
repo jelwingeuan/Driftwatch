@@ -26,21 +26,29 @@ pub(crate) const TOOL_LIMIT: Duration = Duration::from_secs(120);
 const FILE_LIMIT: u64 = 16 << 20;
 
 /// Run a tool (stopped after `TOOL_LIMIT`) and return its stdout, or a one-line
-/// error naming what failed.
+/// error naming what failed. `cmd` is an absolute path, so PATH never picks the tool.
 pub(crate) fn run(cmd: &str, args: &[&str]) -> Result<String, String> {
     let out = output(Command::new(cmd).args(args), TOOL_LIMIT)?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
         let last = err.lines().last().unwrap_or("").trim();
-        return Err(format!("{cmd} failed ({}): {last}", out.status));
+        let name = tool_name(cmd);
+        return Err(format!("{name} failed ({}): {last}", out.status));
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// A tool's file name: errors say "security", not "/usr/bin/security", as before
+/// tools were run by absolute path, so stored error items don't show as changed.
+fn tool_name(program: &str) -> &str {
+    program.rsplit('/').next().unwrap_or(program)
 }
 
 /// Run `cmd` with no input, waiting at most `limit`. Err (naming the tool) when it
 /// can't start or runs too long, in which case it is killed.
 pub(crate) fn output(cmd: &mut Command, limit: Duration) -> Result<Output, String> {
-    let name = cmd.get_program().to_string_lossy().into_owned();
+    let program = cmd.get_program().to_string_lossy();
+    let name = tool_name(&program).to_string();
     let mut child = cmd
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -188,5 +196,16 @@ mod tests {
         let ok = output(Command::new("echo").arg("hi"), Duration::from_secs(5)).unwrap();
         assert!(ok.status.success());
         assert_eq!(ok.stdout, b"hi\n");
+    }
+
+    #[test]
+    fn tools_run_by_absolute_path_are_named_by_file_name() {
+        let missing = output(
+            &mut Command::new("/nonexistent/tool"),
+            Duration::from_secs(5),
+        );
+        assert!(missing.unwrap_err().starts_with("tool: "));
+        let failed = super::run("/usr/bin/false", &[]).unwrap_err();
+        assert!(failed.starts_with("false failed ("), "{failed}");
     }
 }
