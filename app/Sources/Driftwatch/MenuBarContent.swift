@@ -10,7 +10,16 @@ struct MenuBarContent: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Driftwatch").font(.headline)
+                    if model.history?.latest != nil {
+                        TimelineView(.everyMinute) { context in
+                            let now = context.date
+                            Text(Verdict.from(model.history, scanWarning: model.scanWarning(now: now), now: now).sentence)
+                                .font(.system(.title3, design: .serif))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else {
+                        Text("Driftwatch").font(.headline)
+                    }
                     status.font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()

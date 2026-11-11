@@ -1,30 +1,45 @@
 import AppKit
 import SwiftUI
 
-/// The main window: categories on the left, the change timeline, and an inspector.
+/// The main window: the overview and categories on the left, the overview or the
+/// change timeline, and an inspector.
 struct TimelineWindow: View {
     @Bindable var model: AppModel
-    @State private var categoryID: String? = "all"
+    /// "overview" or a `Category` id.
+    @State private var categoryID: String? = initialScreen
+    /// When set, All changes shows only the changes from this day.
+    @State private var day: Date?
     @State private var search = ""
     @State private var showInspector = true
 
     private var category: Category { Category.named(categoryID ?? "all") }
+    private var isOverview: Bool { categoryID == "overview" }
+
+    /// The overview, or the category that `-initialScreen <id>` names (the screenshot
+    /// script uses it). It picks the sidebar selection and nothing else.
+    private static var initialScreen: String {
+        let id = UserDefaults.standard.string(forKey: "initialScreen")
+        return Category.all.first { $0.id == id }?.id ?? "overview"
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(Category.all, selection: $categoryID) { category in
-                Label(category.name, systemImage: category.symbol)
-                    .badge(count(in: category))
+            List(selection: $categoryID) {
+                Label("Overview", systemImage: "level").tag("overview")
+                ForEach(Category.all) { category in
+                    Label(category.name, systemImage: category.symbol)
+                        .badge(count(in: category))
+                }
             }
             .navigationSplitViewColumnWidth(min: 190, ideal: 220)
         } detail: {
-            timeline
+            detail
                 .frame(minWidth: 360)
                 .safeAreaInset(edge: .top, spacing: 0) { banners }
-                .navigationTitle(category.name)
+                .navigationTitle(isOverview ? "Overview" : category.name)
                 .navigationSubtitle(subtitle)
                 .searchable(text: $search, prompt: "Search changes")
-                .inspector(isPresented: $showInspector) {
+                .inspector(isPresented: Binding { showInspector && !isOverview } set: { showInspector = $0 }) {
                     InspectorView(row: model.row(id: model.selection))
                         .inspectorColumnWidth(min: 260, ideal: 320, max: 480)
                 }
@@ -38,16 +53,27 @@ struct TimelineWindow: View {
                         }
                         .help("Scan Now (⌘R)")
                         .disabled(model.isScanning)
-                        Button { showInspector.toggle() } label: {
-                            Label("Inspector", systemImage: "sidebar.trailing")
+                        if !isOverview {
+                            Button { showInspector.toggle() } label: {
+                                Label("Inspector", systemImage: "sidebar.trailing")
+                            }
+                            .help(showInspector ? "Hide Inspector" : "Show Inspector")
                         }
-                        .help(showInspector ? "Hide Inspector" : "Show Inspector")
                     }
                 }
         }
         .onChange(of: model.selection) { _, selection in
-            if selection != nil { showInspector = true }
+            guard selection != nil else { return }
+            showInspector = true
+            // A change picked in the menu bar shows in All changes, even when another day is shown.
+            if isOverview { categoryID = "all" }
+            if let day, let row = model.row(id: selection), !Calendar.current.isDate(row.takenAt, inSameDayAs: day) {
+                self.day = nil
+            }
         }
+        .onChange(of: search) { if !search.isEmpty, isOverview { categoryID = "all" } }
+        // The day filter only applies where "Show These Changes" sent you.
+        .onChange(of: categoryID) { if categoryID != "all" { day = nil } }
         // Changes that arrive while the window is open count as seen.
         .onChange(of: model.history?.entries.first?.snapshotID) { model.markSeen() }
         .onAppear {
@@ -59,10 +85,24 @@ struct TimelineWindow: View {
         .onDisappear { NSApp.setActivationPolicy(.accessory) }
     }
 
+    /// The overview once there is a scan; before that, the timeline's loading, error
+    /// and no-scans-yet states.
+    @ViewBuilder private var detail: some View {
+        if isOverview, let history = model.history, history.latest != nil {
+            OverviewView(model: model, history: history) { day in
+                self.day = day
+                categoryID = "all"
+            }
+        } else {
+            timeline
+        }
+    }
+
     // MARK: Timeline
 
     private var sections: [Entry] {
         (model.history?.entries ?? []).compactMap { entry in
+            if let day, !Calendar.current.isDate(entry.takenAt, inSameDayAs: day) { return nil }
             let changes = entry.distinctChanges.filter { category.contains($0) && matchesSearch($0) }
             return changes.isEmpty
                 ? nil : Entry(snapshotID: entry.snapshotID, takenAt: entry.takenAt, changes: changes)
@@ -141,6 +181,13 @@ struct TimelineWindow: View {
                     let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
                     NSWorkspace.shared.open(url)
                 }
+            }
+            if let day {
+                Banner(
+                    symbol: "calendar",
+                    text: "Showing only changes from \(day.formatted(.dateTime.weekday(.wide).day().month(.wide))).",
+                    buttonTitle: "Show All"
+                ) { self.day = nil }
             }
             if model.history != nil {
                 TimelineView(.everyMinute) { context in
